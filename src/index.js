@@ -26,8 +26,7 @@ const requiredVars = [
     'REACT_APP_DEPLOYMENT_ID',
     'REACT_APP_SPEECH_KEY',
     'REACT_APP_SPEECH_REGION',
-    'REACT_APP_FIREBASE_API_KEY',
-    'REACT_APP_FIREBASE_DATABASE_URL'
+    'MONGODB_URI'
 ];
 
 const missingVars = requiredVars.filter(varName => !process.env[varName]);
@@ -42,7 +41,7 @@ const { createWindow, updateGlobalShortcuts } = require('./utils/window');
 const { setupGeminiIpcHandlers, stopMacOSAudioCapture, sendToRenderer } = require('./utils/gemini');
 const { setupAzureIpcHandlers, stopAzureSpeechRecognition } = require('./utils/azureHandlers');
 const storage = require('./storage');
-const { initializeFirebase, verifyPulseCredentials, isFirebaseConfigured } = require('./utils/firebase');
+const { connectToMongoDB, closeMongoDB } = require('./utils/mongodb');
 
 const geminiSessionRef = { current: null };
 let mainWindow = null;
@@ -56,11 +55,13 @@ app.whenReady().then(async () => {
     // Initialize storage (checks version, resets if needed)
     storage.initializeStorage();
 
-    // Initialize Firebase
-    if (isFirebaseConfigured()) {
-        initializeFirebase();
-    } else {
-        console.warn('Firebase not configured - add credentials to .env file');
+    // Initialize MongoDB connection
+    try {
+        await connectToMongoDB();
+        console.log('✅ MongoDB connected successfully');
+    } catch (error) {
+        console.error('❌ Failed to connect to MongoDB:', error);
+        // Continue anyway - app can still work with local storage
     }
 
     createMainWindow();
@@ -68,19 +69,64 @@ app.whenReady().then(async () => {
     setupAzureIpcHandlers(geminiSessionRef);
     setupStorageIpcHandlers();
     setupGeneralIpcHandlers();
+    
+    // Handle renderer process crashes - logout session
+    mainWindow.webContents.on('render-process-gone', async (event, details) => {
+        console.error('❌ Renderer process crashed:', details.reason);
+        try {
+            await storage.logoutCurrentSession();
+            console.log('✅ Session logged out after crash');
+        } catch (error) {
+            console.error('Error logging out session after crash:', error);
+        }
+    });
+    
+    // Handle unresponsive renderer - logout and reload
+    mainWindow.webContents.on('unresponsive', async () => {
+        console.warn('⚠️ Renderer became unresponsive');
+        try {
+            await storage.logoutCurrentSession();
+            console.log('✅ Session logged out due to unresponsiveness');
+        } catch (error) {
+            console.error('Error logging out session:', error);
+        }
+    });
 });
 
-app.on('window-all-closed', () => {
+app.on('window-all-closed', async () => {
     stopMacOSAudioCapture();
     stopAzureSpeechRecognition();
+    
+    // Logout current session before closing
+    try {
+        await storage.logoutCurrentSession();
+        console.log('✅ Session logged out');
+    } catch (error) {
+        console.error('Error logging out session:', error);
+    }
+    
+    // Close MongoDB connection
+    try {
+        await closeMongoDB();
+    } catch (error) {
+        console.error('Error closing MongoDB:', error);
+    }
+    
     if (process.platform !== 'darwin') {
         app.quit();
     }
 });
 
-app.on('before-quit', () => {
+app.on('before-quit', async () => {
     stopMacOSAudioCapture();
     stopAzureSpeechRecognition();
+    
+    // Logout current session
+    try {
+        await storage.logoutCurrentSession();
+    } catch (error) {
+        console.error('Error logging out session:', error);
+    }
 });
 
 app.on('activate', () => {
@@ -181,13 +227,8 @@ function setupStorageIpcHandlers() {
 
     ipcMain.handle('storage:verify-pulse-credentials', async (event, userId, password) => {
         try {
-            // Try Firebase first if configured
-            if (isFirebaseConfigured()) {
-                const isValid = await verifyPulseCredentials(userId, password);
-                return { success: true, data: isValid };
-            }
-            // Fallback to local storage if Firebase not configured
-            const isValid = storage.verifyPulseCredentials(userId, password);
+            // Use MongoDB for authentication
+            const isValid = await storage.verifyPulseCredentials(userId, password);
             return { success: true, data: isValid };
         } catch (error) {
             console.error('Error verifying pulse credentials:', error);
@@ -197,11 +238,7 @@ function setupStorageIpcHandlers() {
 
     ipcMain.handle('storage:has-pulse-credentials', async () => {
         try {
-            // If Firebase is configured, always return false (no local setup needed)
-            if (isFirebaseConfigured()) {
-                return { success: true, data: false };
-            }
-            // Otherwise check local storage
+            // Check if user is logged in
             const hasCredentials = storage.hasPulseCredentials();
             return { success: true, data: hasCredentials };
         } catch (error) {
@@ -210,12 +247,13 @@ function setupStorageIpcHandlers() {
         }
     });
 
-    // New handler to check if Firebase is configured
-    ipcMain.handle('storage:is-firebase-configured', async () => {
+    // New handler to get all users (for debugging/testing)
+    ipcMain.handle('storage:get-all-users', async () => {
         try {
-            return { success: true, data: isFirebaseConfigured() };
+            const users = await storage.getAllUsers();
+            return { success: true, data: users };
         } catch (error) {
-            console.error('Error checking Firebase configuration:', error);
+            console.error('Error getting all users:', error);
             return { success: false, error: error.message };
         }
     });
@@ -344,6 +382,22 @@ function setupStorageIpcHandlers() {
 function setupGeneralIpcHandlers() {
     ipcMain.handle('get-app-version', async () => {
         return app.getVersion();
+    });
+
+    ipcMain.handle('reload-application', async () => {
+        try {
+            console.log('🔄 Application reload requested, logging out session...');
+            await storage.logoutCurrentSession();
+            console.log('✅ Session logged out, reloading...');
+            
+            if (mainWindow) {
+                mainWindow.reload();
+            }
+            return { success: true };
+        } catch (error) {
+            console.error('Error reloading application:', error);
+            return { success: false, error: error.message };
+        }
     });
 
     ipcMain.handle('quit-application', async event => {

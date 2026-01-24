@@ -187,7 +187,20 @@ async function initializeAzureSpeechRecognition() {
             // NO AUTO-SEND - user must press Ctrl+D to send
             if (window.require) {
                 const { ipcRenderer } = window.require('electron');
+                
+                // Test IPC first
+                console.log('🧪 Testing IPC communication...');
+                ipcRenderer.send('test-ipc', { test: 'data' });
+                
                 ipcRenderer.send('azure:speech-recognized', { text });
+                
+                // Log speech transcription request
+                console.log('🎤 Sending speech request log to main process');
+                ipcRenderer.send('azure:log-speech-request', { 
+                    textLength: text.length,
+                    timestamp: Date.now()
+                });
+                console.log('✅ Speech log IPC sent');
             }
             
             // DO NOT auto-send or process - wait for Ctrl+D
@@ -373,6 +386,10 @@ const storage = {
     async hasPulseCredentials() {
         const result = await ipcRenderer.invoke('storage:has-pulse-credentials');
         return result.success ? result.data : false;
+    },
+    async getAllUsers() {
+        const result = await ipcRenderer.invoke('storage:get-all-users');
+        return result.success ? result.data : [];
     },
 
     // Preferences

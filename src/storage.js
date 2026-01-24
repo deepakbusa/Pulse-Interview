@@ -1,6 +1,15 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const {
+    verifyUserCredentials,
+    getUserById,
+    getAllUsers,
+    createSession,
+    endSession,
+    updateSessionActivity,
+    logAuditEvent,
+} = require('./utils/mongodb');
 
 const CONFIG_VERSION = 1;
 
@@ -161,6 +170,10 @@ function initializeStorage() {
             fs.mkdirSync(historyDir, { recursive: true });
         }
     }
+    
+    // SECURITY: Clear session on app startup - require fresh login every time
+    currentSession = { userId: null, sessionId: null };
+    console.log('🔒 Session cleared - login required');
 }
 
 // ============ CONFIG ============
@@ -201,31 +214,104 @@ function setApiKey(apiKey) {
     return setCredentials({ apiKey });
 }
 
-// ============ PULSE CREDENTIALS (Login) ============
+// ============ PULSE CREDENTIALS (Login) - Now uses MongoDB ============
 
-function getPulseCredentials() {
-    const saved = readJsonFile(getPulseCredentialsPath(), {});
-    return { ...DEFAULT_PULSE_CREDENTIALS, ...saved };
-}
+// Keep local session storage for quick access
+let currentSession = {
+    userId: null,
+    sessionId: null,
+};
 
 function setPulseCredentials(userId, password) {
-    return writeJsonFile(getPulseCredentialsPath(), { userId, password });
+    // Store locally for quick reference (not for verification)
+    return writeJsonFile(getPulseCredentialsPath(), { userId });
 }
 
-function verifyPulseCredentials(userId, password) {
-    const saved = getPulseCredentials();
-    // If no credentials are saved yet, allow setting them up
-    if (!saved.userId || !saved.password) {
-        return false;
+async function verifyPulseCredentials(userId, password) {
+    try {
+        // SECURITY: Always require credentials - no bypass
+        if (!userId || !password) {
+            return { success: false, error: 'Both User ID and Password are required' };
+        }
+        
+        // Verify against MongoDB with security checks
+        const result = await verifyUserCredentials(userId, password);
+        
+        if (!result.success) {
+            // Log failed attempt
+            logAuditEvent({
+                userId,
+                action: 'user.login_failed',
+                status: 'failure',
+                metadata: { 
+                    reason: result.error,
+                    isBlocked: result.isBlocked || false,
+                    timestamp: new Date()
+                },
+            });
+            
+            // Return error to UI
+            return result;
+        }
+        
+        // Success - create session in MongoDB
+        const sessionId = await createSession(userId, {
+            electronVersion: process.versions.electron,
+            appVersion: '0.7.0',
+        });
+        
+        // Store session info locally
+        currentSession = { userId, sessionId };
+        
+        // Log successful login
+        logAuditEvent({
+            userId,
+            action: 'user.login',
+            status: 'success',
+            metadata: { sessionId },
+        });
+        
+        return { success: true };
+        
+    } catch (error) {
+        console.error('Verification error:', error);
+        return { success: false, error: 'Login verification failed. Please try again.' };
     }
-    // Verify credentials match
-    return saved.userId === userId && saved.password === password;
 }
 
 function hasPulseCredentials() {
-    const saved = getPulseCredentials();
-    return !!(saved.userId && saved.password);
+    return currentSession.userId !== null;
 }
+
+function getCurrentSession() {
+    return currentSession;
+}
+
+async function logoutCurrentSession() {
+    if (currentSession.sessionId) {
+        await endSession(currentSession.sessionId);
+        
+        logAuditEvent({
+            userId: currentSession.userId,
+            action: 'user.logout',
+            status: 'success',
+            metadata: { sessionId: currentSession.sessionId },
+        });
+        
+        currentSession = { userId: null, sessionId: null };
+    }
+}
+
+// Keep session active with periodic updates
+function updateSessionHeartbeat() {
+    if (currentSession.sessionId) {
+        updateSessionActivity(currentSession.sessionId);
+    }
+}
+
+// Call heartbeat every 5 minutes
+setInterval(updateSessionHeartbeat, 5 * 60 * 1000);
+
 
 // ============ PREFERENCES ============
 
@@ -462,11 +548,13 @@ module.exports = {
     getApiKey,
     setApiKey,
 
-    // Pulse Credentials (Login)
-    getPulseCredentials,
+    // Pulse Credentials (Login) - MongoDB backed
     setPulseCredentials,
     verifyPulseCredentials,
     hasPulseCredentials,
+    getCurrentSession,
+    logoutCurrentSession,
+    getAllUsers, // Export MongoDB function directly
 
     // Preferences
     getPreferences,

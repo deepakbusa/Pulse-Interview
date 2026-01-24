@@ -70,6 +70,35 @@ function createWindow(sendToRenderer, geminiSessionRef) {
     mainWindow.setContentProtection(true);
     mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 
+    // Handle window reload (Ctrl+R) - logout session before reload
+    mainWindow.webContents.on('before-input-event', async (event, input) => {
+        if (input.type === 'keyDown' && input.key === 'r' && (input.control || input.meta)) {
+            console.log('🔄 Window reload detected, logging out session...');
+            try {
+                await storage.logoutCurrentSession();
+                console.log('✅ Session logged out before reload');
+            } catch (error) {
+                console.error('Error logging out session on reload:', error);
+            }
+        }
+    });
+
+    // Handle window close - logout session
+    mainWindow.on('close', async (event) => {
+        console.log('🔄 Window closing, logging out session...');
+        event.preventDefault(); // Prevent immediate close
+        
+        try {
+            await storage.logoutCurrentSession();
+            console.log('✅ Session logged out on close');
+        } catch (error) {
+            console.error('Error logging out session on close:', error);
+        } finally {
+            // Now actually close
+            mainWindow.destroy();
+        }
+    });
+
     // Hide from Windows taskbar
     if (process.platform === 'win32') {
         try {
@@ -89,6 +118,17 @@ function createWindow(sendToRenderer, geminiSessionRef) {
             console.warn('Could not hide from Mission Control:', error.message);
         }
     }
+
+    // Handle navigation/reload events
+    mainWindow.webContents.on('did-start-loading', async () => {
+        console.log('🔄 Page loading started, logging out previous session...');
+        try {
+            await storage.logoutCurrentSession();
+            console.log('✅ Previous session logged out');
+        } catch (error) {
+            console.error('Error logging out session on navigation:', error);
+        }
+    });
 
     // Center window at the top of the screen
     const primaryDisplay = screen.getPrimaryDisplay();

@@ -108,13 +108,16 @@ export class LoginView extends LitElement {
         }
 
         .error-message {
-            padding: 10px 12px;
+            padding: 12px 16px;
             background: rgba(241, 76, 76, 0.1);
             border: 1px solid var(--error-color);
             border-radius: var(--border-radius);
             color: var(--error-color);
             font-size: 13px;
             text-align: center;
+            white-space: pre-line;
+            line-height: 1.6;
+            font-weight: 500;
         }
 
         .info-message {
@@ -181,24 +184,39 @@ export class LoginView extends LitElement {
     }
 
     async handleLogin() {
+        // SECURITY: Require both fields - no bypass
         if (!this.userId || !this.password) {
             this.errorMessage = 'Please enter both User ID and Password';
             return;
         }
 
-        // Login mode only - verify credentials from Firebase
+        // Trim inputs to prevent whitespace bypass
+        const userId = this.userId.trim();
+        const password = this.password.trim();
+        
+        if (!userId || !password) {
+            this.errorMessage = 'User ID and Password cannot be empty';
+            return;
+        }
+
         this.isLoading = true;
+        this.errorMessage = '';
+        
         try {
-            const isValid = await window.pulse.storage.verifyPulseCredentials(this.userId, this.password);
-            if (isValid) {
-                this.errorMessage = '';
+            // Verify credentials with security checks
+            const result = await window.pulse.storage.verifyPulseCredentials(userId, password);
+            
+            if (result.success) {
+                // Login successful
                 this.dispatchEvent(new CustomEvent('login-success'));
                 if (this.onLogin) {
                     this.onLogin();
                 }
             } else {
-                this.errorMessage = 'Invalid User ID or Password';
+                // Login failed - show detailed error
+                this.errorMessage = result.error || 'Invalid User ID or Password';
                 this.password = '';
+                this.requestUpdate();
             }
         } catch (error) {
             console.error('Login error:', error);

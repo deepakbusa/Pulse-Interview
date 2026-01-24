@@ -152,15 +152,10 @@ export class PulseApp extends LitElement {
             if (!config.onboarded) {
                 this.currentView = 'onboarding';
             } else {
-                // Onboarding done, check authentication
-                const hasCredentials = await cheatingDaddy.storage.hasPulseCredentials();
-                if (hasCredentials) {
-                    // Has credentials, show login
-                    this.currentView = 'login';
-                } else {
-                    // First time, show login setup
-                    this.currentView = 'login';
-                }
+                // SECURITY: Always require login on startup - no bypass
+                // Even if credentials exist locally, user must authenticate every time
+                this.currentView = 'login';
+                this.isAuthenticated = false;
             }
 
             // Apply background appearance (color + transparency)
@@ -301,16 +296,34 @@ export class PulseApp extends LitElement {
 
     // Header event handlers
     handleCustomizeClick() {
+        // SECURITY: Require authentication
+        if (!this.isAuthenticated) {
+            console.warn('Unauthorized access attempt to customize view');
+            this.currentView = 'login';
+            return;
+        }
         this.currentView = 'customize';
         this.requestUpdate();
     }
 
     handleHelpClick() {
+        // SECURITY: Require authentication
+        if (!this.isAuthenticated) {
+            console.warn('Unauthorized access attempt to help view');
+            this.currentView = 'login';
+            return;
+        }
         this.currentView = 'help';
         this.requestUpdate();
     }
 
     handleHistoryClick() {
+        // SECURITY: Require authentication
+        if (!this.isAuthenticated) {
+            console.warn('Unauthorized access attempt to history view');
+            this.currentView = 'login';
+            return;
+        }
         this.currentView = 'history';
         this.requestUpdate();
     }
