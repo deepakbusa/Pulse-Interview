@@ -173,13 +173,13 @@ function getDefaultKeybinds() {
         moveRight: isMac ? 'Alt+Right' : 'Ctrl+Right',
         toggleVisibility: isMac ? 'Cmd+\\' : 'Ctrl+\\',
         toggleClickThrough: isMac ? 'Cmd+M' : 'Ctrl+M',
-        nextStep: isMac ? 'Cmd+Enter' : 'Ctrl+Enter',
+        nextStep: isMac ? 'Cmd+/' : 'Ctrl+/',
         previousResponse: isMac ? 'Cmd+[' : 'Ctrl+[',
         nextResponse: isMac ? 'Cmd+]' : 'Ctrl+]',
         scrollUp: isMac ? 'Cmd+Shift+Up' : 'Ctrl+Shift+Up',
         scrollDown: isMac ? 'Cmd+Shift+Down' : 'Ctrl+Shift+Down',
         sendTranscription: isMac ? 'Cmd+D' : 'Ctrl+D',
-        analyzeScreen: isMac ? 'Cmd+A' : 'Ctrl+A',
+        analyzeScreen: isMac ? 'Cmd+/' : 'Ctrl+/',
         emergencyErase: isMac ? 'Cmd+Shift+E' : 'Ctrl+Shift+E',
     };
 }
@@ -275,7 +275,7 @@ function updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessi
                 try {
                     // Determine the shortcut key format
                     const isMac = process.platform === 'darwin';
-                    const shortcutKey = isMac ? 'cmd+enter' : 'ctrl+enter';
+                    const shortcutKey = isMac ? 'cmd+/' : 'ctrl+/';
 
                     // Use the new handleShortcut function
                     mainWindow.webContents.executeJavaScript(`
@@ -356,11 +356,11 @@ function updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessi
         }
     }
 
-    // Register analyze screen shortcut (Ctrl+A)
+    // Register analyze screen shortcut (Ctrl+/)
     if (keybinds.analyzeScreen) {
         try {
             globalShortcut.register(keybinds.analyzeScreen, () => {
-                console.log('Analyze screen shortcut triggered (Ctrl+A)');
+                console.log('Analyze screen shortcut triggered (Ctrl+/)');
                 mainWindow.webContents.executeJavaScript(`
                     if (window.captureManualScreenshot) {
                         window.captureManualScreenshot();

@@ -8,49 +8,51 @@ export class LoginView extends LitElement {
             align-items: center;
             height: 100%;
             background: var(--bg-primary);
+            padding: 16px;
         }
 
         .login-container {
             background: var(--bg-secondary);
             border-radius: var(--border-radius);
-            padding: 32px;
+            padding: 24px;
             border: 1px solid var(--border-color);
-            max-width: 400px;
-            width: 90%;
+            max-width: 360px;
+            width: 100%;
+            box-sizing: border-box;
         }
 
         .login-header {
             text-align: center;
-            margin-bottom: 24px;
+            margin-bottom: 16px;
         }
 
         .login-logo {
-            font-size: 40px;
-            margin-bottom: 12px;
+            font-size: 32px;
+            margin-bottom: 8px;
         }
 
         .login-title {
-            font-size: 20px;
+            font-size: 16px;
             font-weight: 600;
             color: var(--text-color);
-            margin-bottom: 6px;
+            margin-bottom: 4px;
         }
 
         .login-subtitle {
-            font-size: 13px;
+            font-size: 11px;
             color: var(--text-secondary);
         }
 
         .login-form {
             display: flex;
             flex-direction: column;
-            gap: 16px;
+            gap: 12px;
         }
 
         .form-group {
             display: flex;
             flex-direction: column;
-            gap: 6px;
+            gap: 4px;
         }
 
         .form-label {
@@ -60,8 +62,8 @@ export class LoginView extends LitElement {
         }
 
         .form-input {
-            padding: 10px 12px;
-            font-size: 14px;
+            padding: 8px 10px;
+            font-size: 13px;
             border: 1px solid var(--border-color);
             border-radius: var(--border-radius);
             background: var(--input-background);
@@ -81,8 +83,8 @@ export class LoginView extends LitElement {
         }
 
         .login-button {
-            padding: 12px 20px;
-            font-size: 14px;
+            padding: 10px 16px;
+            font-size: 13px;
             font-weight: 600;
             color: var(--start-button-color);
             background: var(--start-button-background);
@@ -108,7 +110,7 @@ export class LoginView extends LitElement {
         }
 
         .error-message {
-            padding: 12px 16px;
+            padding: 10px 12px;
             background: rgba(241, 76, 76, 0.1);
             border: 1px solid var(--error-color);
             border-radius: var(--border-radius);

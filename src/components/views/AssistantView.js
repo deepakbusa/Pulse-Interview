@@ -13,6 +13,29 @@ export class AssistantView extends LitElement {
             cursor: default;
         }
 
+        .connection-alert {
+            background: var(--error-color);
+            color: #fff;
+            padding: 6px 12px;
+            font-size: 11px;
+            text-align: center;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            animation: slideDown 0.3s ease;
+        }
+
+        @keyframes slideDown {
+            from { transform: translateY(-100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .connection-alert.hidden {
+            display: none;
+        }
+
         .transcription-display {
             background: var(--bg-secondary);
             border-bottom: 1px solid var(--border-color);
@@ -281,9 +304,9 @@ export class AssistantView extends LitElement {
             background: var(--btn-primary-bg, #ffffff);
             color: var(--btn-primary-text, #000000);
             border: none;
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-size: 12px;
+            padding: 5px 10px;
+            border-radius: 6px;
+            font-size: 11px;
             font-weight: 500;
             cursor: pointer;
             transition: all 0.15s ease;
@@ -295,19 +318,26 @@ export class AssistantView extends LitElement {
         }
 
         .screen-answer-btn svg {
-            width: 16px;
-            height: 16px;
+            width: 14px;
+            height: 14px;
             flex-shrink: 0;
         }
 
-        .screen-answer-btn .usage-count {
-            font-size: 11px;
-            opacity: 0.7;
+        .screen-answer-btn .shortcut-text {
+            font-size: 10px;
+            opacity: 0.6;
             font-family: 'SF Mono', Monaco, monospace;
+            margin-left: 4px;
         }
 
         .screen-answer-btn-wrapper {
             position: relative;
+        }
+
+        .button-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
         }
 
         .screen-answer-btn-wrapper .tooltip {
@@ -369,6 +399,40 @@ export class AssistantView extends LitElement {
             opacity: 0.5;
             font-size: 10px;
         }
+
+        .resume-sync-container {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 8px;
+            background: var(--bg-secondary);
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+
+        .resume-sync-container:hover {
+            background: var(--bg-tertiary);
+            border-color: var(--border-hover);
+        }
+
+        .resume-sync-checkbox {
+            width: 14px;
+            height: 14px;
+            accent-color: var(--btn-primary-bg, #ffffff);
+            cursor: pointer;
+            margin: 0;
+            flex-shrink: 0;
+        }
+
+        .resume-sync-label {
+            font-size: 10px;
+            color: var(--text-color);
+            cursor: pointer;
+            user-select: none;
+            font-weight: 500;
+        }
     `;
 
     static properties = {
@@ -382,6 +446,9 @@ export class AssistantView extends LitElement {
         transcriptionText: { type: String },
         interimText: { type: String },
         isListening: { type: Boolean },
+        isOffline: { type: Boolean },
+        syncWithResume: { type: Boolean },
+        hasResumeContent: { type: Boolean },
     };
 
     constructor() {
@@ -395,6 +462,67 @@ export class AssistantView extends LitElement {
         this.transcriptionText = '';
         this.interimText = '';
         this.isListening = false;
+        this.isOffline = false;
+        this.syncWithResume = false;
+        this.hasResumeContent = false;
+        this._checkResumeContent();
+        this._setupConnectionMonitor();
+    }
+
+    async _checkResumeContent() {
+        try {
+            const prefs = await window.pulse.storage.getPreferences();
+            this.hasResumeContent = !!(prefs.resumeContent && prefs.resumeContent.trim());
+            // Always start with sync OFF when entering live interview
+            this.syncWithResume = false;
+        } catch (error) {
+            console.error('Error checking resume content:', error);
+        }
+    }
+
+    _setupConnectionMonitor() {
+        window.addEventListener('online', () => {
+            this.isOffline = false;
+            console.log('Connection restored');
+        });
+        window.addEventListener('offline', () => {
+            this.isOffline = true;
+            console.log('Connection lost');
+        });
+        this.isOffline = !navigator.onLine;
+    }
+
+    async handleResumeSyncChange(e) {
+        const checked = e.target.checked;
+        
+        // If trying to enable sync, check if resume content exists
+        if (checked) {
+            const prefs = await window.pulse.storage.getPreferences();
+            const resumeContent = prefs.resumeContent || '';
+            
+            if (!resumeContent.trim()) {
+                // Show alert and uncheck
+                alert('Please save your resume content in Settings.');
+                e.target.checked = false;
+                this.syncWithResume = false;
+                return;
+            }
+            
+            // Resume content exists, proceed with sync
+            this.syncWithResume = true;
+            await window.pulse.storage.updatePreference('syncWithResume', true);
+            
+            const message = `Please remember the following information about me for this conversation. Use this context to provide personalized responses when relevant:\n\n${resumeContent}\n\nAcknowledge that you've saved this information.`;
+            await this.onSendText(message);
+        } else {
+            // Disabling sync
+            this.syncWithResume = false;
+            try {
+                await window.pulse.storage.updatePreference('syncWithResume', false);
+            } catch (error) {
+                console.error('Error saving resume sync preference:', error);
+            }
+        }
     }
 
     getProfileNames() {
@@ -586,7 +714,7 @@ export class AssistantView extends LitElement {
             };
 
             this.handleSpeechSessionStarted = () => {
-                console.log('Azure Speech session started');
+                console.log('Speech session started');
                 this.isListening = true;
                 this.transcriptionText = '';
                 this.interimText = '';
@@ -594,7 +722,7 @@ export class AssistantView extends LitElement {
             };
 
             this.handleSpeechSessionStopped = () => {
-                console.log('Azure Speech session stopped');
+                console.log('Speech session stopped');
                 this.isListening = false;
                 this.transcriptionText = '';
                 this.interimText = '';
@@ -617,6 +745,11 @@ export class AssistantView extends LitElement {
 
     disconnectedCallback() {
         super.disconnectedCallback();
+
+        // Stop Azure speech recognition when leaving assistant view
+        if (window.cheatingDaddy?.stopWebSpeech) {
+            window.cheatingDaddy.stopWebSpeech();
+        }
 
         // Clean up IPC listeners
         if (window.require) {
@@ -746,6 +879,12 @@ export class AssistantView extends LitElement {
         const responseCounter = this.getResponseCounter();
 
         return html`
+            ${this.isOffline ? html`
+                <div class="connection-alert">
+                    ⚠️ No internet connection
+                </div>
+            ` : ''}
+
             ${(this.isListening || this.transcriptionText || this.interimText) ? html`
                 <div class="transcription-display ${this.isListening ? 'listening' : ''}">
                     <div class="transcription-label">
@@ -780,26 +919,45 @@ export class AssistantView extends LitElement {
 
                 <input type="text" id="textInput" placeholder="Type a message to the AI..." @keydown=${this.handleTextKeydown} />
 
-                <div class="screen-answer-btn-wrapper">
-                    <div class="tooltip">
-                        <div class="tooltip-row">
-                            <span class="tooltip-label">Flash</span>
-                            <span class="tooltip-value">${this.flashCount}/20</span>
+                <div class="button-row">
+                    ${this.hasResumeContent ? html`
+                        <div class="resume-sync-container">
+                            <input 
+                                type="checkbox" 
+                                id="resumeSync" 
+                                class="resume-sync-checkbox"
+                                .checked=${this.syncWithResume}
+                                @change=${this.handleResumeSyncChange}
+                            />
+                            <label for="resumeSync" class="resume-sync-label" @click=${(e) => { e.preventDefault(); this.shadowRoot.querySelector('#resumeSync').click(); }}>
+                                Sync resume
+                            </label>
                         </div>
-                        <div class="tooltip-row">
-                            <span class="tooltip-label">Flash Lite</span>
-                            <span class="tooltip-value">${this.flashLiteCount}/20</span>
+                    ` : ''}
+
+                    <div class="screen-answer-btn-wrapper">
+                        <div class="tooltip">
+                            <div class="tooltip-row">
+                                <span class="tooltip-label">Flash</span>
+                                <span class="tooltip-value">${this.flashCount}/20</span>
+                            </div>
+                            <div class="tooltip-row">
+                                <span class="tooltip-label">Flash Lite</span>
+                                <span class="tooltip-value">${this.flashLiteCount}/20</span>
+                            </div>
+                            <div class="tooltip-note">Resets every 24 hours</div>
                         </div>
-                        <div class="tooltip-note">Resets every 24 hours</div>
+                        <button class="screen-answer-btn" @click=${this.handleScreenAnswer}>
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                <path d="M15.98 1.804a1 1 0 0 0-1.96 0l-.24 1.192a1 1 0 0 1-.784.785l-1.192.238a1 1 0 0 0 0 1.962l1.192.238a1 1 0 0 1 .785.785l.238 1.192a1 1 0 0 0 1.962 0l.238-1.192a1 1 0 0 1 .785-.785l1.192-.238a1 1 0 0 0 0-1.962l-1.192-.238a1 1 0 0 1-.785-.785l-.238-1.192ZM6.949 5.684a1 1 0 0 0-1.898 0l-.683 2.051a1 1 0 0 1-.633.633l-2.051.683a1 1 0 0 0 0 1.898l2.051.684a1 1 0 0 1 .633.632l.683 2.051a1 1 0 0 0 1.898 0l.683-2.051a1 1 0 0 1 .633-.633l2.051-.683a1 1 0 0 0 0-1.898l-2.051-.683a1 1 0 0 1-.633-.633L6.95 5.684ZM13.949 13.684a1 1 0 0 0-1.898 0l-.184.551a1 1 0 0 1-.632.633l-.551.183a1 1 0 0 0 0 1.898l.551.183a1 1 0 0 1 .633.633l.183.551a1 1 0 0 0 1.898 0l.184-.551a1 1 0 0 1 .632-.633l.551-.183a1 1 0 0 0 0-1.898l-.551-.184a1 1 0 0 1-.633-.632l-.183-.551Z" />
+                            </svg>
+                            <span>Analyze</span>
+                            <span class="shortcut-text">(Ctrl+/)</span>
+                        </button>
                     </div>
-                    <button class="screen-answer-btn" @click=${this.handleScreenAnswer}>
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                            <path d="M15.98 1.804a1 1 0 0 0-1.96 0l-.24 1.192a1 1 0 0 1-.784.785l-1.192.238a1 1 0 0 0 0 1.962l1.192.238a1 1 0 0 1 .785.785l.238 1.192a1 1 0 0 0 1.962 0l.238-1.192a1 1 0 0 1 .785-.785l1.192-.238a1 1 0 0 0 0-1.962l-1.192-.238a1 1 0 0 1-.785-.785l-.238-1.192ZM6.949 5.684a1 1 0 0 0-1.898 0l-.683 2.051a1 1 0 0 1-.633.633l-2.051.683a1 1 0 0 0 0 1.898l2.051.684a1 1 0 0 1 .633.632l.683 2.051a1 1 0 0 0 1.898 0l.683-2.051a1 1 0 0 1 .633-.633l2.051-.683a1 1 0 0 0 0-1.898l-2.051-.683a1 1 0 0 1-.633-.633L6.95 5.684ZM13.949 13.684a1 1 0 0 0-1.898 0l-.184.551a1 1 0 0 1-.632.633l-.551.183a1 1 0 0 0 0 1.898l.551.183a1 1 0 0 1 .633.633l.183.551a1 1 0 0 0 1.898 0l.184-.551a1 1 0 0 1 .632-.633l.551-.183a1 1 0 0 0 0-1.898l-.551-.184a1 1 0 0 1-.633-.632l-.183-.551Z" />
-                        </svg>
-                        <span>Analyze screen</span>
-                        <span class="usage-count">(${this.getTotalUsed()}/${this.getTotalAvailable()})</span>
-                    </button>
-                </div>                ${this.isLoading ? html`
+                </div>
+                
+                ${this.isLoading ? html`
                     <div class="loading-overlay">
                         <div style="display: flex; flex-direction: column; align-items: center;">
                             <div class="loading-spinner"></div>

@@ -167,7 +167,7 @@ async function initializeAzureSpeechRecognition() {
     recognizer.recognizing = (s, e) => {
         if (e.result.reason === sdk.ResultReason.RecognizingSpeech && e.result.text) {
             const text = e.result.text;
-            console.log('Azure Speech recognizing (interim):', text);
+            console.log('Speech recognizing (interim):', text);
             
             // Send interim result to renderer for real-time display
             if (window.require) {
@@ -181,7 +181,7 @@ async function initializeAzureSpeechRecognition() {
     recognizer.recognized = async (s, e) => {
         if (e.result.reason === sdk.ResultReason.RecognizedSpeech && e.result.text) {
             const text = e.result.text;
-            console.log('Azure Speech recognized (final):', text);
+            console.log('Speech recognized (final):', text);
             
             // ONLY send final result to renderer for display accumulation
             // NO AUTO-SEND - user must press Ctrl+D to send
@@ -208,7 +208,7 @@ async function initializeAzureSpeechRecognition() {
     };
     
     recognizer.sessionStarted = (s, e) => {
-        console.log('Azure Speech session started');
+        console.log('Speech session started');
         if (window.require) {
             const { ipcRenderer } = window.require('electron');
             ipcRenderer.send('azure:speech-session-started');
@@ -216,16 +216,16 @@ async function initializeAzureSpeechRecognition() {
     };
     
     recognizer.canceled = (s, e) => {
-        console.log('Azure Speech canceled:', e.reason);
+        console.log('Speech canceled:', e.reason);
         if (e.reason === sdk.CancellationReason.Error) {
-            console.error('Azure Speech error:', e.errorDetails);
+            console.error('Speech error:', e.errorDetails);
             cheatingDaddy.setStatus('Speech recognition error - Check microphone');
             stopAzureSpeechRecognition();
         }
     };
     
     recognizer.sessionStopped = (s, e) => {
-        console.log('Azure Speech session stopped');
+        console.log('Speech session stopped');
         isSpeechActive = false;
         if (window.require) {
             const { ipcRenderer } = window.require('electron');
@@ -239,7 +239,7 @@ async function initializeAzureSpeechRecognition() {
 async function startAzureSpeechRecognition() {
     // Stop any existing recognizer first
     if (azureSpeechRecognizer && isSpeechActive) {
-        console.log('Stopping existing Azure Speech Recognition...');
+        console.log('Stopping existing Speech Recognition...');
         await new Promise((resolve) => {
             azureSpeechRecognizer.stopContinuousRecognitionAsync(
                 () => {
@@ -256,7 +256,7 @@ async function startAzureSpeechRecognition() {
     }
     
     // Always create a fresh recognizer to ensure clean state
-    console.log('🎤 Initializing new Azure Speech Recognition...');
+    console.log('🎤 Initializing new Speech Recognition...');
     azureSpeechRecognizer = await initializeAzureSpeechRecognition();
     
     if (!azureSpeechRecognizer) {
@@ -270,8 +270,8 @@ async function startAzureSpeechRecognition() {
             azureSpeechRecognizer.startContinuousRecognitionAsync(
                 () => {
                     isSpeechActive = true;
-                    console.log('✅ Azure Speech Recognition started successfully');
-                    cheatingDaddy.setStatus('🎤 Listening... (Azure Speech Active)');
+                    console.log('✅ Speech Recognition started successfully');
+                    cheatingDaddy.setStatus('🎤 Listening...');
                     resolve();
                 },
                 (err) => {
@@ -288,11 +288,11 @@ async function startAzureSpeechRecognition() {
 
 function stopAzureSpeechRecognition() {
     if (azureSpeechRecognizer && isSpeechActive) {
-        console.log('🛑 Stopping Azure Speech Recognition...');
+        console.log('🛑 Stopping Speech Recognition...');
         azureSpeechRecognizer.stopContinuousRecognitionAsync(
             () => {
                 isSpeechActive = false;
-                console.log('✅ Azure Speech Recognition stopped');
+                console.log('✅ Speech Recognition stopped');
                 cheatingDaddy.setStatus('Voice recognition stopped');
                 
                 // Cleanup system audio resources
@@ -839,7 +839,7 @@ async function captureScreenshot(imageQuality = 'medium', isManual = false) {
                 });
 
                 if (result.success) {
-                    console.log(`✅ Azure Vision auto-analysis completed (${offscreenCanvas.width}x${offscreenCanvas.height})`);
+                    console.log(`✅ Vision auto-analysis completed (${offscreenCanvas.width}x${offscreenCanvas.height})`);
                 } else {
                     console.error('❌ Failed automatic screenshot analysis:', result.error);
                 }
@@ -925,7 +925,7 @@ async function captureManualScreenshot(imageQuality = null) {
                 }
 
                 // Send image to Azure OpenAI Vision
-                console.log('📸 Sending screenshot to Azure Vision for analysis...');
+                console.log('📸 Sending screenshot to Vision for analysis...');
                 
                 const result = await ipcRenderer.invoke('azure:analyze-screenshot', {
                     base64Image: base64data,
@@ -933,7 +933,7 @@ async function captureManualScreenshot(imageQuality = null) {
                 });
 
                 if (result.success) {
-                    console.log('✅ Azure Vision analysis completed');
+                    console.log('✅ Vision analysis completed');
                     // Add the analysis as a new response
                     cheatingDaddy.addNewResponse(result.analysis);
                 } else {
@@ -1005,7 +1005,7 @@ async function sendTextMessage(text) {
     try {
         // Check if Azure is active
         if (isAzureActive) {
-            console.log('Sending text message to Azure OpenAI:', text);
+            console.log('Sending text message to AI:', text);
             
             // Reset the first chunk flag for new message
             isFirstAzureChunk = true;
@@ -1015,7 +1015,7 @@ async function sendTextMessage(text) {
                 context: null 
             });
             if (result.success) {
-                console.log('Azure text message sent successfully');
+                console.log('Text message sent successfully');
             } else {
                 console.error('Failed to send Azure text message:', result.error);
             }
@@ -1059,7 +1059,7 @@ ipcRenderer.on('save-session-context', async (event, data) => {
     }
 });
 
-// Listen for screen analysis responses (from ctrl+enter)
+// Listen for screen analysis responses (from ctrl+/)
 ipcRenderer.on('save-screen-analysis', async (event, data) => {
     try {
         await storage.saveSession(data.sessionId, {
@@ -1081,7 +1081,7 @@ ipcRenderer.on('clear-sensitive-data', async () => {
 
 // ============ AZURE IPC LISTENERS ============
 ipcRenderer.on('azure:message-chunk', (event, { chunk }) => {
-    console.log('Azure chunk received:', chunk);
+    console.log('Message chunk received:', chunk);
     
     // If this is the first chunk of a new response, create a new response entry
     if (isFirstAzureChunk) {
@@ -1095,7 +1095,7 @@ ipcRenderer.on('azure:message-chunk', (event, { chunk }) => {
 });
 
 ipcRenderer.on('azure:message-complete', (event, { response }) => {
-    console.log('Azure response complete');
+    console.log('Response complete');
     cheatingDaddy.setStatus('Ready - Listening for questions...');
     // Reset for next message
     isFirstAzureChunk = true;
@@ -1120,7 +1120,7 @@ ipcRenderer.on('azure:speech-error', (event, { error }) => {
 
 ipcRenderer.on('session-started', (event, { provider, model }) => {
     console.log(`Session started with ${provider} (${model})`);
-    cheatingDaddy.setStatus(`Connected to ${provider} - ${model}`);
+    cheatingDaddy.setStatus('AI connected');
 });
 
 ipcRenderer.on('session-stopped', (event) => {
@@ -1132,7 +1132,7 @@ ipcRenderer.on('session-stopped', (event) => {
 function handleShortcut(shortcutKey) {
     const currentView = cheatingDaddy.getCurrentView();
 
-    if (shortcutKey === 'ctrl+enter' || shortcutKey === 'cmd+enter') {
+    if (shortcutKey === 'ctrl+/' || shortcutKey === 'cmd+/') {
         if (currentView === 'main') {
             cheatingDaddy.element().handleStart();
         } else {

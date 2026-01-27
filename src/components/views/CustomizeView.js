@@ -553,6 +553,8 @@ export class CustomizeView extends LitElement {
         isClearing: { type: Boolean },
         clearStatusMessage: { type: String },
         clearStatusType: { type: String },
+        isSavingResume: { type: Boolean },
+        resumeSaveMessage: { type: String },
     };
 
     constructor() {
@@ -574,6 +576,10 @@ export class CustomizeView extends LitElement {
         this.isClearing = false;
         this.clearStatusMessage = '';
         this.clearStatusType = '';
+
+        // Resume save state
+        this.isSavingResume = false;
+        this.resumeSaveMessage = '';
 
         // Background transparency default
         this.backgroundTransparency = 0.8;
@@ -803,7 +809,29 @@ export class CustomizeView extends LitElement {
 
     async handleCustomPromptInput(e) {
         this.customPrompt = e.target.value;
-        await cheatingDaddy.storage.updatePreference('customPrompt', e.target.value);
+        // Clear save message when typing
+        this.resumeSaveMessage = '';
+    }
+
+    async handleSaveResumeContent() {
+        this.isSavingResume = true;
+        this.resumeSaveMessage = '';
+        try {
+            // Save as resumeContent now
+            await cheatingDaddy.storage.updatePreference('resumeContent', this.customPrompt);
+            await cheatingDaddy.storage.updatePreference('customPrompt', this.customPrompt);
+            this.resumeSaveMessage = '✓ Resume content saved successfully!';
+            setTimeout(() => {
+                this.resumeSaveMessage = '';
+                this.requestUpdate();
+            }, 3000);
+        } catch (error) {
+            console.error('Error saving resume:', error);
+            this.resumeSaveMessage = '✗ Failed to save';
+        } finally {
+            this.isSavingResume = false;
+            this.requestUpdate();
+        }
     }
 
     async handleAudioModeSelect(e) {
@@ -828,13 +856,13 @@ export class CustomizeView extends LitElement {
             moveRight: isMac ? 'Alt+Right' : 'Ctrl+Right',
             toggleVisibility: isMac ? 'Cmd+\\' : 'Ctrl+\\',
             toggleClickThrough: isMac ? 'Cmd+M' : 'Ctrl+M',
-            nextStep: isMac ? 'Cmd+Enter' : 'Ctrl+Enter',
+            nextStep: isMac ? 'Cmd+/' : 'Ctrl+/',
             previousResponse: isMac ? 'Cmd+[' : 'Ctrl+[',
             nextResponse: isMac ? 'Cmd+]' : 'Ctrl+]',
             scrollUp: isMac ? 'Cmd+Shift+Up' : 'Ctrl+Shift+Up',
             scrollDown: isMac ? 'Cmd+Shift+Down' : 'Ctrl+Shift+Down',
             sendTranscription: isMac ? 'Cmd+D' : 'Ctrl+D',
-            analyzeScreen: isMac ? 'Cmd+A' : 'Ctrl+A',
+            analyzeScreen: isMac ? 'Cmd+/' : 'Ctrl+/',
             emergencyErase: isMac ? 'Cmd+Shift+E' : 'Ctrl+Shift+E',
         };
     }
@@ -1123,17 +1151,32 @@ export class CustomizeView extends LitElement {
                     </div>
 
                     <div class="form-group expand">
-                        <label class="form-label">Custom AI Instructions</label>
+                        <label class="form-label">Resume Content</label>
                         <textarea
                             class="form-control"
-                            placeholder="Add specific instructions for how you want the AI to behave during ${
-                                profileNames[this.selectedProfile] || 'this interaction'
+                            placeholder="Paste your resume content here. Include your skills, experience, education, and achievements. The AI will use this to provide personalized responses during ${
+                                profileNames[this.selectedProfile] || 'your session'
                             }..."
                             .value=${this.customPrompt}
                             @input=${this.handleCustomPromptInput}
+                            style="min-height: 200px;"
                         ></textarea>
+                        <div style="display: flex; gap: 12px; align-items: center; margin-top: 8px;">
+                            <button 
+                                class="reset-keybinds-button" 
+                                @click=${this.handleSaveResumeContent}
+                                ?disabled=${this.isSavingResume}
+                            >
+                                ${this.isSavingResume ? 'Saving...' : 'Save Resume Content'}
+                            </button>
+                            ${this.resumeSaveMessage ? html`
+                                <span style="font-size: 11px; color: var(--success-color);">
+                                    ${this.resumeSaveMessage}
+                                </span>
+                            ` : ''}
+                        </div>
                         <div class="form-description">
-                            Personalize the AI's behavior with specific instructions
+                            Paste your resume content here. When you enable "Sync with my resume" during the interview, the AI will reference this information to provide personalized responses.
                         </div>
                     </div>
                 </div>

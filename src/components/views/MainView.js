@@ -167,7 +167,7 @@ export class MainView extends LitElement {
             this.isInitializing = isInitializing;
         });
 
-        // Add keyboard event listener for Ctrl+Enter (or Cmd+Enter on Mac)
+        // Add keyboard event listener for Ctrl+/ (or Cmd+/ on Mac)
         document.addEventListener('keydown', this.boundKeydownHandler);
 
         // Resize window for this view
@@ -222,7 +222,7 @@ export class MainView extends LitElement {
 
     getStartButtonText() {
         const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-        const shortcut = isMac ? 'Cmd+Enter' : 'Ctrl+Enter';
+        const shortcut = isMac ? 'Cmd+/' : 'Ctrl+/';
         return html`Start <span class="shortcut-hint">${shortcut}</span>`;
     }
 
@@ -233,7 +233,7 @@ export class MainView extends LitElement {
             ${this.isAzureConfigured 
                 ? html`
                     <div class="description" style="color: var(--success-color); margin-bottom: 16px;">
-                        ✓ Azure OpenAI configured and ready (GPT-4o with Voice Recognition)
+                        ✓ AI Assistant configured and ready
                     </div>
                     <button @click=${this.handleStartClick} class="start-button ${this.isInitializing ? 'initializing' : ''}" style="width: 100%;">
                         ${this.getStartButtonText()}

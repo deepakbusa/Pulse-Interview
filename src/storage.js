@@ -31,6 +31,8 @@ const DEFAULT_PULSE_CREDENTIALS = {
 
 const DEFAULT_PREFERENCES = {
     customPrompt: '',
+    resumeContent: '',
+    syncWithResume: false,
     selectedProfile: 'interview',
     selectedLanguage: 'en-US',
     selectedScreenshotInterval: '5',
