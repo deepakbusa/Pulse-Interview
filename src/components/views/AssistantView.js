@@ -433,6 +433,132 @@ export class AssistantView extends LitElement {
             user-select: none;
             font-weight: 500;
         }
+
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            animation: fadeIn 0.2s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+
+        .loading-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .loading-spinner {
+            width: 60px;
+            height: 60px;
+            position: relative;
+        }
+
+        .loading-spinner::before,
+        .loading-spinner::after {
+            content: '';
+            position: absolute;
+            border-radius: 50%;
+        }
+
+        .loading-spinner::before {
+            width: 100%;
+            height: 100%;
+            border: 3px solid transparent;
+            border-top-color: var(--btn-primary-bg, #ffffff);
+            animation: spin 1s linear infinite;
+        }
+
+        .loading-spinner::after {
+            width: 80%;
+            height: 80%;
+            top: 10%;
+            left: 10%;
+            border: 3px solid transparent;
+            border-top-color: var(--text-color);
+            opacity: 0.5;
+            animation: spin 0.7s linear infinite reverse;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .loading-text {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-color);
+            animation: pulse 1.5s ease-in-out infinite;
+            letter-spacing: 0.5px;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        .loading-dots {
+            display: inline-flex;
+            gap: 4px;
+            margin-left: 4px;
+        }
+
+        .loading-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--btn-primary-bg, #ffffff);
+            animation: bounce 1.4s ease-in-out infinite;
+        }
+
+        .loading-dot:nth-child(1) {
+            animation-delay: 0s;
+        }
+
+        .loading-dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .loading-dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes bounce {
+            0%, 80%, 100% {
+                transform: scale(0.8);
+                opacity: 0.5;
+            }
+            40% {
+                transform: scale(1.2);
+                opacity: 1;
+            }
+        }
     `;
 
     static properties = {
@@ -449,6 +575,7 @@ export class AssistantView extends LitElement {
         isOffline: { type: Boolean },
         syncWithResume: { type: Boolean },
         hasResumeContent: { type: Boolean },
+        isLoading: { type: Boolean },
     };
 
     constructor() {
@@ -465,6 +592,7 @@ export class AssistantView extends LitElement {
         this.isOffline = false;
         this.syncWithResume = false;
         this.hasResumeContent = false;
+        this.isLoading = false;
         this._checkResumeContent();
         this._setupConnectionMonitor();
     }
@@ -959,9 +1087,16 @@ export class AssistantView extends LitElement {
                 
                 ${this.isLoading ? html`
                     <div class="loading-overlay">
-                        <div style="display: flex; flex-direction: column; align-items: center;">
+                        <div class="loading-container">
                             <div class="loading-spinner"></div>
-                            <div class="loading-text">Processing...</div>
+                            <div class="loading-text">
+                                AI Thinking
+                                <span class="loading-dots">
+                                    <span class="loading-dot"></span>
+                                    <span class="loading-dot"></span>
+                                    <span class="loading-dot"></span>
+                                </span>
+                            </div>
                         </div>
                     </div>
                 ` : ''}            </div>
