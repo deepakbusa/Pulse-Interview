@@ -373,6 +373,11 @@ async function updateSessionActivity(sessionId) {
  */
 async function endSession(sessionId) {
     try {
+        // Check if client is still available before attempting operation
+        if (!client) {
+            console.log('⚠️ MongoDB already closed, skipping session end');
+            return;
+        }
         const db = await connectToMongoDB();
         await db.collection('sessions').updateOne(
             { sessionId },
@@ -384,7 +389,12 @@ async function endSession(sessionId) {
             }
         );
     } catch (error) {
-        console.error('Error ending session:', error);
+        // Silently handle if MongoDB is already closed
+        if (error.name === 'MongoClientClosedError') {
+            console.log('⚠️ MongoDB already closed during session end');
+        } else {
+            console.error('Error ending session:', error);
+        }
     }
 }
 

@@ -97,7 +97,7 @@ app.on('window-all-closed', async () => {
     stopMacOSAudioCapture();
     stopAzureSpeechRecognition();
     
-    // Logout current session before closing
+    // Logout current session before closing MongoDB
     try {
         await storage.logoutCurrentSession();
         console.log('✅ Session logged out');
@@ -105,7 +105,7 @@ app.on('window-all-closed', async () => {
         console.error('Error logging out session:', error);
     }
     
-    // Close MongoDB connection
+    // Close MongoDB connection after session cleanup
     try {
         await closeMongoDB();
     } catch (error) {

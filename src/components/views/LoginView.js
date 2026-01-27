@@ -110,16 +110,20 @@ export class LoginView extends LitElement {
         }
 
         .error-message {
-            padding: 10px 12px;
+            padding: 8px 10px;
             background: rgba(241, 76, 76, 0.1);
             border: 1px solid var(--error-color);
             border-radius: var(--border-radius);
             color: var(--error-color);
-            font-size: 13px;
+            font-size: 11px;
             text-align: center;
-            white-space: pre-line;
-            line-height: 1.6;
+            white-space: normal;
+            line-height: 1.4;
             font-weight: 500;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            max-width: 100%;
+            box-sizing: border-box;
         }
 
         .info-message {

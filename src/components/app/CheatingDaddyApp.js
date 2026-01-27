@@ -112,6 +112,7 @@ export class PulseApp extends LitElement {
         shouldAnimateResponse: { type: Boolean },
         _storageLoaded: { state: true },
         isAuthenticated: { type: Boolean },
+        isLoading: { type: Boolean },
     };
 
     constructor() {
@@ -136,6 +137,7 @@ export class PulseApp extends LitElement {
         this._currentResponseIsComplete = true;
         this.shouldAnimateResponse = false;
         this._storageLoaded = false;
+        this.isLoading = false;
 
         // Load from storage
         this._loadFromStorage();
@@ -278,6 +280,7 @@ export class PulseApp extends LitElement {
         this.responses = [...this.responses, response];
         this.currentResponseIndex = this.responses.length - 1;
         this._awaitingNewResponse = false;
+        this.isLoading = false; // Hide loading immediately when first chunk arrives
         console.log('[addNewResponse] Added:', response);
         this.requestUpdate();
     }
@@ -459,14 +462,17 @@ export class PulseApp extends LitElement {
 
     // Assistant view event handlers
     async handleSendText(message) {
+        this.isLoading = true; // Show loading before sending
         const result = await window.cheatingDaddy.sendTextMessage(message);
 
         if (!result.success) {
             console.error('Failed to send message:', result.error);
             this.setStatus('Error sending message: ' + result.error);
+            this.isLoading = false; // Hide loading on error
         } else {
             this.setStatus('Message sent...');
             this._awaitingNewResponse = true;
+            // isLoading will be set to false in addNewResponse when first chunk arrives
         }
     }
 
@@ -565,6 +571,7 @@ export class PulseApp extends LitElement {
                         .selectedProfile=${this.selectedProfile}
                         .onSendText=${message => this.handleSendText(message)}
                         .shouldAnimateResponse=${this.shouldAnimateResponse}
+                        .isLoading=${this.isLoading}
                         @response-index-changed=${this.handleResponseIndexChanged}
                         @response-animation-complete=${() => {
                             this.shouldAnimateResponse = false;

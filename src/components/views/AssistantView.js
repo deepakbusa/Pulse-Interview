@@ -14,17 +14,26 @@ export class AssistantView extends LitElement {
         }
 
         .connection-alert {
-            background: var(--error-color);
-            color: #fff;
-            padding: 6px 12px;
-            font-size: 11px;
-            text-align: center;
-            font-weight: 500;
+            background: rgba(255, 59, 48, 0.1);
+            border-bottom: 1px solid rgba(255, 59, 48, 0.3);
+            padding: 4px 0;
             display: flex;
             align-items: center;
             justify-content: center;
             gap: 6px;
-            animation: slideDown 0.3s ease;
+            font-size: 10px;
+            color: #ff3b30;
+            font-weight: 500;
+            animation: slideDown 0.2s ease;
+        }
+
+        .connection-alert::before {
+            content: '';
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: #ff3b30;
+            animation: blink 1.5s infinite;
         }
 
         @keyframes slideDown {
@@ -91,8 +100,14 @@ export class AssistantView extends LitElement {
             font-style: italic;
         }
 
-        .response-container {
+        .response-wrapper {
+            position: relative;
             height: calc(100% - 50px);
+            overflow: hidden;
+        }
+
+        .response-container {
+            height: 100%;
             overflow-y: auto;
             font-size: var(--response-font-size, 16px);
             line-height: 1.6;
@@ -440,13 +455,12 @@ export class AssistantView extends LitElement {
             left: 0;
             right: 0;
             bottom: 0;
-            background: rgba(0, 0, 0, 0.7);
-            backdrop-filter: blur(4px);
+            background: var(--bg-primary);
             display: flex;
             align-items: center;
             justify-content: center;
-            z-index: 1000;
-            animation: fadeIn 0.2s ease;
+            z-index: 100;
+            animation: fadeIn 0.3s ease;
         }
 
         @keyframes fadeIn {
@@ -837,6 +851,14 @@ export class AssistantView extends LitElement {
                 
                 this.requestUpdate();
                 
+                // Auto-scroll transcription display to bottom
+                setTimeout(() => {
+                    const transcriptionDisplay = this.shadowRoot.querySelector('.transcription-display');
+                    if (transcriptionDisplay) {
+                        transcriptionDisplay.scrollTop = transcriptionDisplay.scrollHeight;
+                    }
+                }, 50);
+                
                 // NO AUTO-SEND - Only send when user presses Ctrl+D
                 console.log('✋ Transcription accumulated. Press Ctrl+D to send.');
             };
@@ -919,12 +941,8 @@ export class AssistantView extends LitElement {
         if (textInput && textInput.value.trim()) {
             const message = textInput.value.trim();
             textInput.value = ''; // Clear input
-            this.isLoading = true;
-            try {
-                await this.onSendText(message);
-            } finally {
-                this.isLoading = false;
-            }
+            // isLoading is now controlled by parent component for instant dismissal
+            await this.onSendText(message);
         }
     }
 
@@ -1008,9 +1026,7 @@ export class AssistantView extends LitElement {
 
         return html`
             ${this.isOffline ? html`
-                <div class="connection-alert">
-                    ⚠️ No internet connection
-                </div>
+                <div class="connection-alert">Internet disconnected</div>
             ` : ''}
 
             ${(this.isListening || this.transcriptionText || this.interimText) ? html`
@@ -1028,7 +1044,24 @@ export class AssistantView extends LitElement {
                 </div>
             ` : ''}
 
-            <div class="response-container" id="responseContainer"></div>
+            <div class="response-wrapper">
+                ${this.isLoading ? html`
+                    <div class="loading-overlay">
+                        <div class="loading-container">
+                            <div class="loading-spinner"></div>
+                            <div class="loading-text">
+                                AI Thinking
+                                <span class="loading-dots">
+                                    <span class="loading-dot"></span>
+                                    <span class="loading-dot"></span>
+                                    <span class="loading-dot"></span>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                ` : ''}
+                <div class="response-container" id="responseContainer"></div>
+            </div>
 
             <div class="text-input-container">
                 <button class="nav-button" @click=${this.navigateToPreviousResponse} ?disabled=${this.currentResponseIndex <= 0}>
@@ -1084,22 +1117,7 @@ export class AssistantView extends LitElement {
                         </button>
                     </div>
                 </div>
-                
-                ${this.isLoading ? html`
-                    <div class="loading-overlay">
-                        <div class="loading-container">
-                            <div class="loading-spinner"></div>
-                            <div class="loading-text">
-                                AI Thinking
-                                <span class="loading-dots">
-                                    <span class="loading-dot"></span>
-                                    <span class="loading-dot"></span>
-                                    <span class="loading-dot"></span>
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                ` : ''}            </div>
+            </div>
         `;
     }
 }
