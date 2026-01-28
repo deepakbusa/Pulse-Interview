@@ -24,7 +24,7 @@ async function connectToMongoDB() {
     }
 
     try {
-        console.log('🔌 Connecting to MongoDB...');
+        console.log('Connecting to MongoDB...');
         client = new MongoClient(MONGODB_URI, {
             maxPoolSize: 10,
             minPoolSize: 2,
@@ -101,7 +101,7 @@ async function closeMongoDB() {
         await client.close();
         client = null;
         db = null;
-        console.log('🔌 MongoDB connection closed');
+        console.log('MongoDB connection closed');
     }
 }
 
@@ -197,7 +197,7 @@ async function verifyUserCredentials(userId, password) {
             
             return { 
                 success: false, 
-                error: '⚠️ SECURITY ALERT: ACCOUNT FROZEN\n\nYou attempted to login while already having an active session.\n\nFor security reasons, your account has been blocked.\n\nPlease contact Admin to unfreeze your account.',
+                error: 'SECURITY ALERT: ACCOUNT FROZEN\n\nYou attempted to login while already having an active session.\n\nFor security reasons, your account has been blocked.\n\nPlease contact Admin to unfreeze your account.',
                 shouldBlock: true
             };
         }
@@ -575,12 +575,22 @@ async function getUserUsageStats(userId, days = 30) {
 async function logAuditEvent(eventData) {
     setImmediate(async () => {
         try {
-            const db = await connectToMongoDB();
-            await db.collection('audit_logs').insertOne({
+            // Check if client exists and is connected before logging
+            if (!client) {
+                console.log('MongoDB not connected, skipping audit log');
+                return;
+            }
+            const database = await connectToMongoDB();
+            await database.collection('audit_logs').insertOne({
                 ...eventData,
                 timestamp: new Date(),
             });
         } catch (error) {
+            // Silently ignore if MongoDB is closing/closed
+            if (error.name === 'MongoClientClosedError' || error.message?.includes('client was closed')) {
+                console.log('MongoDB not connected, skipping audit log');
+                return;
+            }
             console.error('Error logging audit event:', error);
         }
     });

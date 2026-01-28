@@ -73,13 +73,13 @@ async function createSystemAudioConfig(sdk) {
         // Check for audio tracks
         const audioTracks = stream.getAudioTracks();
         if (audioTracks.length === 0) {
-            console.warn('⚠️ No audio track found in capture');
+            console.warn('No audio track found in capture');
             // Stop video track if no audio
             stream.getVideoTracks().forEach(track => track.stop());
             throw new Error('No audio track available');
         }
 
-        console.log('✅ System audio capture enabled:', audioTracks[0].label);
+        console.log('System audio capture enabled:', audioTracks[0].label);
         
         // Stop video track as we only need audio
         stream.getVideoTracks().forEach(track => track.stop());
@@ -124,18 +124,18 @@ async function createSystemAudioConfig(sdk) {
         window.systemAudioProcessor = processor;
         window.systemPushStream = pushStream;
         
-        console.log('🎵 System audio pipeline configured');
+        console.log('System audio pipeline configured');
         
         return sdk.AudioConfig.fromStreamInput(pushStream);
         
     } catch (error) {
-        console.error('❌ Error setting up system audio capture:', error);
-        console.log('ℹ️ Make sure to:');
+        console.error('Error setting up system audio capture:', error);
+        console.log('Make sure to:');
         console.log('   1. Select "Entire screen" or a window in the system dialog');
         console.log('   2. Check "Share audio" checkbox in the dialog');
         console.log('   3. Grant permission when prompted');
         console.log('');
-        console.log('⚠️ Falling back to microphone input');
+        console.log('Falling back to microphone input');
         return sdk.AudioConfig.fromDefaultMicrophoneInput();
     }
 }
@@ -189,18 +189,18 @@ async function initializeAzureSpeechRecognition() {
                 const { ipcRenderer } = window.require('electron');
                 
                 // Test IPC first
-                console.log('🧪 Testing IPC communication...');
+                console.log('Testing IPC communication...');
                 ipcRenderer.send('test-ipc', { test: 'data' });
                 
                 ipcRenderer.send('azure:speech-recognized', { text });
                 
                 // Log speech transcription request
-                console.log('🎤 Sending speech request log to main process');
+                console.log('Sending speech request log to main process');
                 ipcRenderer.send('azure:log-speech-request', { 
                     textLength: text.length,
                     timestamp: Date.now()
                 });
-                console.log('✅ Speech log IPC sent');
+                console.log('Speech log IPC sent');
             }
             
             // DO NOT auto-send or process - wait for Ctrl+D
@@ -256,7 +256,7 @@ async function startAzureSpeechRecognition() {
     }
     
     // Always create a fresh recognizer to ensure clean state
-    console.log('🎤 Initializing new Speech Recognition...');
+    console.log('Initializing new Speech Recognition...');
     azureSpeechRecognizer = await initializeAzureSpeechRecognition();
     
     if (!azureSpeechRecognizer) {
@@ -270,12 +270,12 @@ async function startAzureSpeechRecognition() {
             azureSpeechRecognizer.startContinuousRecognitionAsync(
                 () => {
                     isSpeechActive = true;
-                    console.log('✅ Speech Recognition started successfully');
-                    cheatingDaddy.setStatus('🎤 Listening...');
+                    console.log('Speech Recognition started successfully');
+                    cheatingDaddy.setStatus('Listening...');
                     resolve();
                 },
                 (err) => {
-                    console.error('❌ Failed to start Azure Speech recognition:', err);
+                    console.error('Failed to start Azure Speech recognition:', err);
                     cheatingDaddy.setStatus('Failed to start voice recognition');
                     reject(err);
                 }
@@ -288,11 +288,11 @@ async function startAzureSpeechRecognition() {
 
 function stopAzureSpeechRecognition() {
     if (azureSpeechRecognizer && isSpeechActive) {
-        console.log('🛑 Stopping Speech Recognition...');
+        console.log('Stopping Speech Recognition...');
         azureSpeechRecognizer.stopContinuousRecognitionAsync(
             () => {
                 isSpeechActive = false;
-                console.log('✅ Speech Recognition stopped');
+                console.log('Speech Recognition stopped');
                 cheatingDaddy.setStatus('Voice recognition stopped');
                 
                 // Cleanup system audio resources
@@ -302,7 +302,7 @@ function stopAzureSpeechRecognition() {
                 azureSpeechRecognizer = null;
             },
             (err) => {
-                console.error('❌ Error stopping Azure Speech recognition:', err);
+                console.error('Error stopping Azure Speech recognition:', err);
                 isSpeechActive = false;
                 cleanupSystemAudio();
                 azureSpeechRecognizer = null;
@@ -322,7 +322,7 @@ function cleanupSystemAudio() {
     if (window.systemAudioStream) {
         window.systemAudioStream.getTracks().forEach(track => track.stop());
         window.systemAudioStream = null;
-        console.log('🛑 System audio stream stopped');
+        console.log('System audio stream stopped');
     }
     if (window.systemAudioProcessor) {
         window.systemAudioProcessor.disconnect();
@@ -839,9 +839,9 @@ async function captureScreenshot(imageQuality = 'medium', isManual = false) {
                 });
 
                 if (result.success) {
-                    console.log(`✅ Vision auto-analysis completed (${offscreenCanvas.width}x${offscreenCanvas.height})`);
+                    console.log(`Vision auto-analysis completed (${offscreenCanvas.width}x${offscreenCanvas.height})`);
                 } else {
-                    console.error('❌ Failed automatic screenshot analysis:', result.error);
+                    console.error('Failed automatic screenshot analysis:', result.error);
                 }
             };
             reader.readAsDataURL(blob);
@@ -933,11 +933,11 @@ async function captureManualScreenshot(imageQuality = null) {
                 });
 
                 if (result.success) {
-                    console.log('✅ Vision analysis completed');
+                    console.log('Vision analysis completed');
                     // Add the analysis as a new response
                     cheatingDaddy.addNewResponse(result.analysis);
                 } else {
-                    console.error('❌ Failed to analyze screenshot:', result.error);
+                    console.error('Failed to analyze screenshot:', result.error);
                     cheatingDaddy.addNewResponse(`Error analyzing screenshot: ${result.error}`);
                 }
             };

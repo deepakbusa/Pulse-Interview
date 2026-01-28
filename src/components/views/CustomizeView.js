@@ -609,6 +609,7 @@ export class CustomizeView extends LitElement {
         clearStatusType: { type: String },
         isSavingResume: { type: Boolean },
         resumeSaveMessage: { type: String },
+        undetectabilityEnabled: { type: Boolean },
     };
 
     constructor() {
@@ -647,6 +648,9 @@ export class CustomizeView extends LitElement {
         // Custom prompt
         this.customPrompt = '';
 
+        // Undetectability default (ON by default)
+        this.undetectabilityEnabled = true;
+
         // Active section for sidebar navigation
         this.activeSection = 'profile';
 
@@ -669,6 +673,7 @@ export class CustomizeView extends LitElement {
         return [
             { id: 'profile', name: 'Profile', icon: 'user' },
             { id: 'appearance', name: 'Appearance', icon: 'display' },
+            { id: 'visibility', name: 'Visibility', icon: 'eye' },
             { id: 'audio', name: 'Audio', icon: 'mic' },
             { id: 'language', name: 'Language', icon: 'globe' },
             { id: 'capture', name: 'Capture', icon: 'camera' },
@@ -718,6 +723,10 @@ export class CustomizeView extends LitElement {
                 <circle cx="11" cy="11" r="8"></circle>
                 <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
             </svg>`,
+            eye: html`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+            </svg>`,
             warning: html`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
                 <line x1="12" y1="9" x2="12" y2="13"></line>
@@ -740,6 +749,7 @@ export class CustomizeView extends LitElement {
             this.audioMode = prefs.audioMode ?? 'speaker_only';
             this.customPrompt = prefs.customPrompt ?? '';
             this.theme = prefs.theme ?? 'dark';
+            this.undetectabilityEnabled = prefs.undetectabilityEnabled ?? true;
 
             if (keybinds) {
                 this.keybinds = { ...this.getDefaultKeybinds(), ...keybinds };
@@ -916,6 +926,7 @@ export class CustomizeView extends LitElement {
             scrollDown: isMac ? 'Cmd+Shift+Down' : 'Ctrl+Shift+Down',
             sendTranscription: isMac ? 'Cmd+D' : 'Ctrl+D',
             analyzeScreen: isMac ? 'Cmd+/' : 'Ctrl+/',
+            focusTextInput: isMac ? 'Cmd+T' : 'Ctrl+T',
             emergencyErase: isMac ? 'Cmd+Shift+E' : 'Ctrl+Shift+E',
         };
     }
@@ -1013,6 +1024,11 @@ export class CustomizeView extends LitElement {
                 description: 'Capture and analyze the current screen with Azure Vision',
             },
             {
+                key: 'focusTextInput',
+                name: 'Focus Text Input',
+                description: 'Focus the text input box to type messages',
+            },
+            {
                 key: 'emergencyErase',
                 name: 'Emergency Erase',
                 description: 'Clear all sensitive data and quit the application immediately',
@@ -1106,6 +1122,23 @@ export class CustomizeView extends LitElement {
                 await ipcRenderer.invoke('update-google-search-setting', this.googleSearchEnabled);
             } catch (error) {
                 console.error('Failed to notify main process:', error);
+            }
+        }
+
+        this.requestUpdate();
+    }
+
+    async handleUndetectabilityChange(e) {
+        this.undetectabilityEnabled = e.target.checked;
+        await cheatingDaddy.storage.updatePreference('undetectabilityEnabled', this.undetectabilityEnabled);
+
+        // Notify main process to update window visibility settings
+        if (window.require) {
+            try {
+                const { ipcRenderer } = window.require('electron');
+                await ipcRenderer.invoke('update-undetectability-setting', this.undetectabilityEnabled);
+            } catch (error) {
+                console.error('Failed to update undetectability:', error);
             }
         }
 
@@ -1467,6 +1500,30 @@ export class CustomizeView extends LitElement {
         `;
     }
 
+    renderVisibilitySection() {
+        return html`
+            <div class="content-header">Visibility Settings</div>
+            <div class="form-grid">
+                <div class="form-group">
+                    <div class="checkbox-group">
+                        <input
+                            type="checkbox"
+                            class="checkbox-input"
+                            id="undetectability-enabled"
+                            .checked=${this.undetectabilityEnabled}
+                            @change=${this.handleUndetectabilityChange}
+                        />
+                        <label for="undetectability-enabled" class="checkbox-label">Enable Undetectability</label>
+                    </div>
+                    <div class="form-description" style="margin-left: 24px; margin-top: 4px;">
+                        When enabled, the app will be hidden from screen sharing and recording software.
+                        <br /><strong>Turn OFF</strong> to make the app visible in screen shares.
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
     renderAdvancedSection() {
         return html`
             <div class="content-header" style="color: var(--error-color);">Advanced</div>
@@ -1499,6 +1556,8 @@ export class CustomizeView extends LitElement {
                 return this.renderProfileSection();
             case 'appearance':
                 return this.renderAppearanceSection();
+            case 'visibility':
+                return this.renderVisibilitySection();
             case 'audio':
                 return this.renderAudioSection();
             case 'language':

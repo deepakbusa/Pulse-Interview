@@ -67,13 +67,27 @@ function createWindow(sendToRenderer, geminiSessionRef) {
     );
 
     mainWindow.setResizable(false);
-    mainWindow.setContentProtection(true);
+    
+    // Load undetectability setting from storage and apply it
+    // Default is true (enabled/undetectable)
+    const storage = require('../storage.js');
+    try {
+        const prefs = storage.getPreferences();
+        const undetectabilityEnabled = prefs.undetectabilityEnabled ?? true;
+        mainWindow.setContentProtection(undetectabilityEnabled);
+        console.log(`🔒 Undetectability ${undetectabilityEnabled ? 'enabled' : 'disabled'} on startup`);
+    } catch (err) {
+        // If error loading, default to enabled (true)
+        mainWindow.setContentProtection(true);
+        console.log('🔒 Undetectability enabled (default)');
+    }
+    
     mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 
     // Handle window reload (Ctrl+R) - logout session before reload
     mainWindow.webContents.on('before-input-event', async (event, input) => {
         if (input.type === 'keyDown' && input.key === 'r' && (input.control || input.meta)) {
-            console.log('🔄 Window reload detected, logging out session...');
+            console.log('Window reload detected, logging out session...');
             try {
                 await storage.logoutCurrentSession();
                 console.log('✅ Session logged out before reload');
@@ -85,7 +99,7 @@ function createWindow(sendToRenderer, geminiSessionRef) {
 
     // Handle window close - logout session
     mainWindow.on('close', async (event) => {
-        console.log('🔄 Window closing, logging out session...');
+        console.log('Window closing, logging out session...');
         event.preventDefault(); // Prevent immediate close
         
         try {
@@ -121,7 +135,7 @@ function createWindow(sendToRenderer, geminiSessionRef) {
 
     // Handle navigation/reload events
     mainWindow.webContents.on('did-start-loading', async () => {
-        console.log('🔄 Page loading started, logging out previous session...');
+        console.log('Page loading started, logging out previous session...');
         try {
             await storage.logoutCurrentSession();
             console.log('✅ Previous session logged out');
@@ -180,6 +194,7 @@ function getDefaultKeybinds() {
         scrollDown: isMac ? 'Cmd+Shift+Down' : 'Ctrl+Shift+Down',
         sendTranscription: isMac ? 'Cmd+D' : 'Ctrl+D',
         analyzeScreen: isMac ? 'Cmd+/' : 'Ctrl+/',
+        focusTextInput: isMac ? 'Cmd+T' : 'Ctrl+T',
         emergencyErase: isMac ? 'Cmd+Shift+E' : 'Ctrl+Shift+E',
     };
 }
@@ -272,18 +287,7 @@ function updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessi
         try {
             globalShortcut.register(keybinds.nextStep, async () => {
                 console.log('Next step shortcut triggered');
-                try {
-                    // Determine the shortcut key format
-                    const isMac = process.platform === 'darwin';
-                    const shortcutKey = isMac ? 'cmd+/' : 'ctrl+/';
-
-                    // Use the new handleShortcut function
-                    mainWindow.webContents.executeJavaScript(`
-                        pulse.handleShortcut('${shortcutKey}');
-                    `);
-                } catch (error) {
-                    console.error('Error handling next step shortcut:', error);
-                }
+                sendToRenderer('analyze-screen');
             });
             console.log(`Registered nextStep: ${keybinds.nextStep}`);
         } catch (error) {
@@ -361,15 +365,35 @@ function updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessi
         try {
             globalShortcut.register(keybinds.analyzeScreen, () => {
                 console.log('Analyze screen shortcut triggered (Ctrl+/)');
-                mainWindow.webContents.executeJavaScript(`
-                    if (window.captureManualScreenshot) {
-                        window.captureManualScreenshot();
-                    }
-                `);
+                sendToRenderer('analyze-screen');
             });
             console.log(`Registered analyzeScreen: ${keybinds.analyzeScreen}`);
         } catch (error) {
             console.error(`Failed to register analyzeScreen (${keybinds.analyzeScreen}):`, error);
+        }
+    }
+
+    // Register focus text input shortcut (Ctrl+T) - Global shortcut
+    if (keybinds.focusTextInput) {
+        try {
+            globalShortcut.register(keybinds.focusTextInput, () => {
+                console.log('Focus text input shortcut triggered (Ctrl+T)');
+                // Bring window to front first
+                if (mainWindow) {
+                    if (mainWindow.isMinimized()) {
+                        mainWindow.restore();
+                    }
+                    mainWindow.show();
+                    mainWindow.focus();
+                    // Small delay to ensure window is focused before sending IPC
+                    setTimeout(() => {
+                        sendToRenderer('focus-text-input');
+                    }, 50);
+                }
+            });
+            console.log(`Registered focusTextInput: ${keybinds.focusTextInput}`);
+        } catch (error) {
+            console.error(`Failed to register focusTextInput (${keybinds.focusTextInput}):`, error);
         }
     }
 

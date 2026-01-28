@@ -323,7 +323,7 @@ export class AssistantView extends LitElement {
             border-radius: 6px;
             font-size: 11px;
             font-weight: 500;
-            cursor: pointer;
+            cursor: default;
             transition: all 0.15s ease;
             white-space: nowrap;
         }
@@ -356,22 +356,30 @@ export class AssistantView extends LitElement {
         }
 
         .screen-answer-btn-wrapper .tooltip {
-            position: absolute;
-            bottom: 100%;
-            right: 0;
-            margin-bottom: 8px;
-            background: var(--tooltip-bg, #1a1a1a);
-            color: var(--tooltip-text, #ffffff);
-            padding: 8px 12px;
-            border-radius: 6px;
-            font-size: 11px;
-            white-space: nowrap;
-            opacity: 0;
-            visibility: hidden;
-            transition: opacity 0.15s ease, visibility 0.15s ease;
+            display: none;
+        }
+
+        .screen-answer-btn.analyzing {
+            opacity: 0.7;
             pointer-events: none;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            z-index: 100;
+        }
+
+        .screen-answer-btn .spinner {
+            display: none;
+            width: 14px;
+            height: 14px;
+            border: 2px solid var(--btn-primary-text, #000000);
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+
+        .screen-answer-btn.analyzing .spinner {
+            display: block;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
         }
 
         .screen-answer-btn-wrapper .tooltip::after {
@@ -436,7 +444,7 @@ export class AssistantView extends LitElement {
             width: 14px;
             height: 14px;
             accent-color: var(--btn-primary-bg, #ffffff);
-            cursor: pointer;
+            cursor: default;
             margin: 0;
             flex-shrink: 0;
         }
@@ -444,7 +452,7 @@ export class AssistantView extends LitElement {
         .resume-sync-label {
             font-size: 10px;
             color: var(--text-color);
-            cursor: pointer;
+            cursor: default;
             user-select: none;
             font-weight: 500;
         }
@@ -590,6 +598,7 @@ export class AssistantView extends LitElement {
         syncWithResume: { type: Boolean },
         hasResumeContent: { type: Boolean },
         isLoading: { type: Boolean },
+        isAnalyzing: { type: Boolean },
     };
 
     constructor() {
@@ -607,6 +616,7 @@ export class AssistantView extends LitElement {
         this.syncWithResume = false;
         this.hasResumeContent = false;
         this.isLoading = false;
+        this.isAnalyzing = false;
         this._checkResumeContent();
         this._setupConnectionMonitor();
     }
@@ -657,12 +667,25 @@ export class AssistantView extends LitElement {
             const message = `Please remember the following information about me for this conversation. Use this context to provide personalized responses when relevant:\n\n${resumeContent}\n\nAcknowledge that you've saved this information.`;
             await this.onSendText(message);
         } else {
-            // Disabling sync
+            // Disabling sync - restart session to clear conversation history
             this.syncWithResume = false;
             try {
                 await window.pulse.storage.updatePreference('syncWithResume', false);
+                
+                // Restart Azure session to clear conversation history
+                console.log('Restarting session to clear resume context...');
+                await window.pulse.stopAzureSession();
+                await window.pulse.startAzureSession(this.selectedProfile || 'interview', 'en-US');
+                
+                // Clear current responses to show fresh start
+                this.dispatchEvent(new CustomEvent('clear-responses', { 
+                    bubbles: true, 
+                    composed: true 
+                }));
+                
+                console.log('Session restarted - resume context cleared');
             } catch (error) {
-                console.error('Error saving resume sync preference:', error);
+                console.error('Error restarting session:', error);
             }
         }
     }
@@ -825,6 +848,20 @@ export class AssistantView extends LitElement {
                 }
             };
 
+            this.handleFocusTextInput = () => {
+                console.log('Focus text input shortcut triggered');
+                const textInput = this.shadowRoot.querySelector('#textInput');
+                if (textInput) {
+                    textInput.focus();
+                    console.log('Text input focused');
+                }
+            };
+
+            this.handleAnalyzeScreen = () => {
+                console.log('Analyze screen shortcut triggered');
+                this.handleScreenAnswer();
+            };
+
             // Azure Speech Recognition handlers
             this.handleSpeechRecognizing = (event, data) => {
                 console.log('Speech recognizing (interim):', data.text);
@@ -884,6 +921,8 @@ export class AssistantView extends LitElement {
             ipcRenderer.on('scroll-response-up', this.handleScrollUp);
             ipcRenderer.on('scroll-response-down', this.handleScrollDown);
             ipcRenderer.on('send-transcription', this.handleSendTranscription);
+            ipcRenderer.on('focus-text-input', this.handleFocusTextInput);
+            ipcRenderer.on('analyze-screen', this.handleAnalyzeScreen);
 
             // Azure Speech IPC listeners
             ipcRenderer.on('azure:speech-recognizing', this.handleSpeechRecognizing);
@@ -971,14 +1010,16 @@ export class AssistantView extends LitElement {
 
     async handleScreenAnswer() {
         if (window.captureManualScreenshot) {
-            this.isLoading = true;
+            this.isAnalyzing = true;
             try {
                 await window.captureManualScreenshot();
                 // Reload limits after a short delay to catch the update
                 setTimeout(() => this.loadLimits(), 1000);
-            } finally {
-                this.isLoading = false;
+            } catch (error) {
+                console.error('Error analyzing screenshot:', error);
+                this.isAnalyzing = false;
             }
+            // Note: isAnalyzing will be cleared when response arrives
         }
     }
 
@@ -1000,6 +1041,10 @@ export class AssistantView extends LitElement {
         super.updated(changedProperties);
         if (changedProperties.has('responses') || changedProperties.has('currentResponseIndex')) {
             this.updateResponseContent();
+            // Clear analyzing state when new response arrives
+            if (changedProperties.has('responses') && this.responses.length > 0 && this.isAnalyzing) {
+                this.isAnalyzing = false;
+            }
         }
     }
 
@@ -1036,7 +1081,7 @@ export class AssistantView extends LitElement {
                             <path d="M7 4a3 3 0 016 0v6a3 3 0 11-6 0V4z"></path>
                             <path d="M5.5 9.643a.75.75 0 00-1.5 0V10c0 3.06 2.29 5.585 5.25 5.954V17.5h-1.5a.75.75 0 000 1.5h4.5a.75.75 0 000-1.5h-1.5v-1.546A6.001 6.001 0 0016 10v-.357a.75.75 0 00-1.5 0V10a4.5 4.5 0 01-9 0v-.357z"></path>
                         </svg>
-                        🎤 Listening... (Press Ctrl+D to send)
+                        Listening... (Press Ctrl+D to send)
                     </div>
                     <div class="transcription-text">
                         ${this.transcriptionText}${this.interimText ? html`<span style="opacity: 0.6">${this.interimText}</span>` : ''}${!this.transcriptionText && !this.interimText ? 'Speak now...' : ''}
@@ -1091,7 +1136,7 @@ export class AssistantView extends LitElement {
                                 @change=${this.handleResumeSyncChange}
                             />
                             <label for="resumeSync" class="resume-sync-label" @click=${(e) => { e.preventDefault(); this.shadowRoot.querySelector('#resumeSync').click(); }}>
-                                Sync resume
+                                Sync my Resume
                             </label>
                         </div>
                     ` : ''}
@@ -1108,11 +1153,12 @@ export class AssistantView extends LitElement {
                             </div>
                             <div class="tooltip-note">Resets every 24 hours</div>
                         </div>
-                        <button class="screen-answer-btn" @click=${this.handleScreenAnswer}>
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <button class="screen-answer-btn ${this.isAnalyzing ? 'analyzing' : ''}" @click=${this.handleScreenAnswer}>
+                            <div class="spinner"></div>
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" style="${this.isAnalyzing ? 'display: none;' : ''}">
                                 <path d="M15.98 1.804a1 1 0 0 0-1.96 0l-.24 1.192a1 1 0 0 1-.784.785l-1.192.238a1 1 0 0 0 0 1.962l1.192.238a1 1 0 0 1 .785.785l.238 1.192a1 1 0 0 0 1.962 0l.238-1.192a1 1 0 0 1 .785-.785l1.192-.238a1 1 0 0 0 0-1.962l-1.192-.238a1 1 0 0 1-.785-.785l-.238-1.192ZM6.949 5.684a1 1 0 0 0-1.898 0l-.683 2.051a1 1 0 0 1-.633.633l-2.051.683a1 1 0 0 0 0 1.898l2.051.684a1 1 0 0 1 .633.632l.683 2.051a1 1 0 0 0 1.898 0l.683-2.051a1 1 0 0 1 .633-.633l2.051-.683a1 1 0 0 0 0-1.898l-2.051-.683a1 1 0 0 1-.633-.633L6.95 5.684ZM13.949 13.684a1 1 0 0 0-1.898 0l-.184.551a1 1 0 0 1-.632.633l-.551.183a1 1 0 0 0 0 1.898l.551.183a1 1 0 0 1 .633.633l.183.551a1 1 0 0 0 1.898 0l.184-.551a1 1 0 0 1 .632-.633l.551-.183a1 1 0 0 0 0-1.898l-.551-.184a1 1 0 0 1-.633-.632l-.183-.551Z" />
                             </svg>
-                            <span>Analyze</span>
+                            <span>${this.isAnalyzing ? 'Analyzing...' : 'Analyze'}</span>
                             <span class="shortcut-text">(Ctrl+/)</span>
                         </button>
                     </div>

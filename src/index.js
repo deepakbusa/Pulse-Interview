@@ -384,9 +384,26 @@ function setupGeneralIpcHandlers() {
         return app.getVersion();
     });
 
+    ipcMain.handle('update-undetectability-setting', async (event, enabled) => {
+        try {
+            console.log(`Updating undetectability setting: ${enabled}`);
+            // When enabled (true), window is undetectable (hidden from screen share)
+            // When disabled (false), window is visible in screen shares
+            if (mainWindow) {
+                // setContentProtection makes window invisible in screen captures when true
+                mainWindow.setContentProtection(enabled);
+                console.log(`✅ Content protection ${enabled ? 'enabled' : 'disabled'}`);
+            }
+            return { success: true };
+        } catch (error) {
+            console.error('Error updating undetectability:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
     ipcMain.handle('reload-application', async () => {
         try {
-            console.log('🔄 Application reload requested, logging out session...');
+            console.log('Application reload requested, logging out session...');
             await storage.logoutCurrentSession();
             console.log('✅ Session logged out, reloading...');
             

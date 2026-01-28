@@ -573,6 +573,12 @@ export class PulseApp extends LitElement {
                         .shouldAnimateResponse=${this.shouldAnimateResponse}
                         .isLoading=${this.isLoading}
                         @response-index-changed=${this.handleResponseIndexChanged}
+                        @clear-responses=${() => {
+                            this.responses = [];
+                            this.currentResponseIndex = -1;
+                            console.log('Responses cleared');
+                            this.requestUpdate();
+                        }}
                         @response-animation-complete=${() => {
                             this.shouldAnimateResponse = false;
                             this._currentResponseIsComplete = true;

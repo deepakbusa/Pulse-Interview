@@ -175,7 +175,7 @@ function initializeStorage() {
     
     // SECURITY: Clear session on app startup - require fresh login every time
     currentSession = { userId: null, sessionId: null };
-    console.log('🔒 Session cleared - login required');
+    console.log('Session cleared - login required');
 }
 
 // ============ CONFIG ============
