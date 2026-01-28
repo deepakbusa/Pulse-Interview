@@ -9,7 +9,7 @@ const { app } = require('electron');
 
 console.log('Backend URL configured - all secrets will be fetched from backend');
 
-const { BrowserWindow, shell, ipcMain } = require('electron');
+const { BrowserWindow, shell, ipcMain, globalShortcut } = require('electron');
 const { createWindow, updateGlobalShortcuts } = require('./utils/window');
 const { setupAzureIpcHandlers, stopAzureSpeechRecognition } = require('./utils/azureHandlers');
 const storage = require('./storage');
@@ -115,6 +115,10 @@ app.on('window-all-closed', async () => {
 
 app.on('before-quit', async () => {
     stopAzureSpeechRecognition();
+    
+    // Unregister all global shortcuts to prevent conflicts
+    globalShortcut.unregisterAll();
+    console.log('All global shortcuts unregistered');
     
     // Logout current session
     try {

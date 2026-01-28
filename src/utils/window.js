@@ -194,7 +194,7 @@ function getDefaultKeybinds() {
         scrollDown: isMac ? 'Cmd+Shift+Down' : 'Ctrl+Shift+Down',
         sendTranscription: isMac ? 'Cmd+D' : 'Ctrl+D',
         analyzeScreen: isMac ? 'Cmd+/' : 'Ctrl+/',
-        focusTextInput: isMac ? 'Cmd+T' : 'Ctrl+T',
+        focusTextInput: isMac ? 'Cmd+Shift+T' : 'Ctrl+Shift+T',
         emergencyErase: isMac ? 'Cmd+Shift+E' : 'Ctrl+Shift+E',
     };
 }
@@ -373,25 +373,33 @@ function updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer) {
         }
     }
 
-    // Register focus text input shortcut (Ctrl+T) - Global shortcut
+    // Register focus text input shortcut (Ctrl+Shift+T) - Global shortcut
     if (keybinds.focusTextInput) {
         try {
-            globalShortcut.register(keybinds.focusTextInput, () => {
-                console.log('Focus text input shortcut triggered (Ctrl+T)');
-                // Bring window to front first
+            // Unregister first to ensure clean registration
+            if (globalShortcut.isRegistered(keybinds.focusTextInput)) {
+                globalShortcut.unregister(keybinds.focusTextInput);
+            }
+            
+            const registered = globalShortcut.register(keybinds.focusTextInput, () => {
+                console.log('Focus text input shortcut triggered (Ctrl+Shift+T)');
                 if (mainWindow) {
+                    // Restore if minimized
                     if (mainWindow.isMinimized()) {
                         mainWindow.restore();
                     }
-                    mainWindow.show();
-                    mainWindow.focus();
-                    // Small delay to ensure window is focused before sending IPC
-                    setTimeout(() => {
-                        sendToRenderer('focus-text-input');
-                    }, 50);
+                    // Show window without stealing focus - user must click to type
+                    mainWindow.showInactive();
+                    // Send IPC event to highlight input (visual cue only)
+                    sendToRenderer('focus-text-input');
                 }
             });
-            console.log(`Registered focusTextInput: ${keybinds.focusTextInput}`);
+            
+            if (registered) {
+                console.log(`✓ Successfully registered focusTextInput: ${keybinds.focusTextInput}`);
+            } else {
+                console.error(`✗ Failed to register focusTextInput: ${keybinds.focusTextInput} (may be in use by another app)`);
+            }
         } catch (error) {
             console.error(`Failed to register focusTextInput (${keybinds.focusTextInput}):`, error);
         }

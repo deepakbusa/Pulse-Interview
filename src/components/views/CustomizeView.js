@@ -926,7 +926,7 @@ export class CustomizeView extends LitElement {
             scrollDown: isMac ? 'Cmd+Shift+Down' : 'Ctrl+Shift+Down',
             sendTranscription: isMac ? 'Cmd+D' : 'Ctrl+D',
             analyzeScreen: isMac ? 'Cmd+/' : 'Ctrl+/',
-            focusTextInput: isMac ? 'Cmd+T' : 'Ctrl+T',
+            focusTextInput: isMac ? 'Cmd+Shift+T' : 'Ctrl+Shift+T',
             emergencyErase: isMac ? 'Cmd+Shift+E' : 'Ctrl+Shift+E',
         };
     }
