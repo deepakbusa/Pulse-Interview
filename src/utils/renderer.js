@@ -1029,6 +1029,9 @@ async function sendTextMessage(text) {
             // Reset the first chunk flag for new message
             isFirstAzureChunk = true;
             
+            // Show immediate feedback
+            cheatingDaddy.setStatus('AI is thinking...');
+            
             const result = await ipcRenderer.invoke('azure:send-message', { 
                 message: text,
                 context: null 
@@ -1037,6 +1040,7 @@ async function sendTextMessage(text) {
                 console.log('Text message sent successfully');
             } else {
                 console.error('Failed to send Azure text message:', result.error);
+                cheatingDaddy.setStatus('Error - Please try again');
             }
             return result;
         } else {

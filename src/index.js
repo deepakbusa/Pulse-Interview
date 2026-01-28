@@ -15,8 +15,16 @@ const { setupAzureIpcHandlers, stopAzureSpeechRecognition } = require('./utils/a
 const storage = require('./storage');
 const { connectToMongoDB, closeMongoDB } = require('./utils/mongodb');
 const azureUtils = require('./utils/azure');
+const { pingBackend } = require('./config/backend');
 
 let mainWindow = null;
+
+// Ping backend every 10 minutes to prevent cold starts
+setInterval(() => {
+    pingBackend().then(success => {
+        if (success) console.log('Backend keepalive ping successful');
+    });
+}, 10 * 60 * 1000); // 10 minutes
 
 function sendToRenderer(channel, data) {
     if (mainWindow && mainWindow.webContents) {
@@ -32,6 +40,10 @@ function createMainWindow() {
 app.whenReady().then(async () => {
     // Initialize storage (checks version, resets if needed)
     storage.initializeStorage();
+
+    // Ping backend immediately to wake it up
+    console.log('Waking up backend...');
+    await pingBackend();
 
     // Fetch credentials from backend
     try {
