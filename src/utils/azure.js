@@ -1,22 +1,86 @@
-const { OpenAI } = require('openai');
-require('dotenv').config();
+const { BACKEND_URL } = require('../config/backend');
+const https = require('https');
+const http = require('http');
 
-// Azure OpenAI Configuration
-const AZURE_API_KEY = process.env.REACT_APP_API_KEY;
-const AZURE_ENDPOINT = process.env.REACT_APP_API_URL;
-const AZURE_DEPLOYMENT = process.env.REACT_APP_DEPLOYMENT_ID;
+/**
+ * Sanitize error messages to remove URLs and sensitive information
+ */
+function sanitizeError(error) {
+    let message = error.message || String(error);
+    
+    // Log for debugging
+    console.log('Sanitizing error:', message);
+    
+    // Check for specific error codes first (before URL removal)
+    if (message.includes('ENOTFOUND') || message.includes('getaddrinfo')) {
+        console.log('Returning: No internet connection message');
+        return 'No internet connection. Please check your network and try again.';
+    }
+    if (message.includes('ECONNREFUSED') || message.includes('ETIMEDOUT')) {
+        return 'Unable to connect to AI service. Please check your internet connection.';
+    }
+    if (message.includes('socket hang up') || message.includes('ECONNRESET')) {
+        return 'Connection interrupted. Please try again.';
+    }
+    if (message.includes('timeout') || message.includes('TIMEOUT')) {
+        return 'Request timed out. Please try again.';
+    }
+    
+    // Remove URLs (http://, https://)
+    message = message.replace(/https?:\/\/[^\s]+/g, '[server]');
+    
+    // Remove domain names (e.g., pulse-backend-1xa3.onrender.com)
+    message = message.replace(/[a-z0-9-]+\.[a-z0-9-]+\.[a-z]{2,}/gi, '[server]');
+    
+    // Remove IP addresses
+    message = message.replace(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g, '[server]');
+    
+    // Remove port numbers
+    message = message.replace(/:\d{2,5}/g, '');
+    
+    console.log('Sanitized message:', message);
+    return message || 'An unexpected error occurred. Please try again.';
+}
 
-// Azure Speech Configuration (for renderer process)
-const SPEECH_KEY = process.env.REACT_APP_SPEECH_KEY;
-const SPEECH_REGION = process.env.REACT_APP_SPEECH_REGION;
+// Backend will handle Azure credentials
+let SPEECH_KEY = null;
+let SPEECH_REGION = null;
 
-// Initialize Azure OpenAI client
-const openai = new OpenAI({
-    apiKey: AZURE_API_KEY,
-    baseURL: `${AZURE_ENDPOINT}openai/deployments/${AZURE_DEPLOYMENT}`,
-    defaultQuery: { 'api-version': '2024-08-01-preview' },
-    defaultHeaders: { 'api-key': AZURE_API_KEY }
-});
+// Fetch speech credentials from backend on startup
+async function fetchSpeechCredentials() {
+    try {
+        const url = `${BACKEND_URL}/config/speech`;
+        const protocol = url.startsWith('https') ? https : http;
+        
+        return new Promise((resolve, reject) => {
+            protocol.get(url, (res) => {
+                let data = '';
+                res.on('data', chunk => data += chunk);
+                res.on('end', () => {
+                    const config = JSON.parse(data);
+                    SPEECH_KEY = config.key;
+                    SPEECH_REGION = config.region;
+                    console.log('Azure credentials fetched:', {
+                        key: SPEECH_KEY ? 'Present' : 'Missing',
+                        region: SPEECH_REGION || 'Missing'
+                    });
+                    resolve({ key: SPEECH_KEY, region: SPEECH_REGION });
+                });
+            }).on('error', reject);
+        });
+    } catch (error) {
+        console.error('Failed to fetch speech credentials:', error);
+        throw error;
+    }
+}
+
+// Getter functions to access current values
+function getSpeechCredentials() {
+    return {
+        key: SPEECH_KEY,
+        region: SPEECH_REGION
+    };
+}
 
 // Speech recognition is handled in renderer process using Web Speech API
 // These are placeholder functions for main process compatibility
@@ -31,74 +95,131 @@ function stopSpeechRecognition() {
 }
 
 /**
- * Send message to Azure OpenAI with streaming
+ * Send message to Azure OpenAI via backend with streaming
  */
 async function sendMessageToAzure(messages, onChunk, onComplete, onError) {
     try {
-        const stream = await openai.chat.completions.create({
-            model: AZURE_DEPLOYMENT,
+        const url = `${BACKEND_URL}/ai/chat`;
+        const protocol = url.startsWith('https') ? https : http;
+        
+        const postData = JSON.stringify({
             messages: messages,
-            stream: true,
-            temperature: 0.7,
-            max_tokens: 2000,
-            top_p: 0.95,
-            frequency_penalty: 0,
-            presence_penalty: 0
+            stream: true
         });
 
-        let fullResponse = '';
-        
-        for await (const chunk of stream) {
-            const content = chunk.choices[0]?.delta?.content || '';
-            if (content) {
-                fullResponse += content;
-                if (onChunk) onChunk(content);
-            }
-        }
+        return new Promise((resolve, reject) => {
+            const req = protocol.request(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Content-Length': Buffer.byteLength(postData)
+                }
+            }, (res) => {
+                let fullResponse = '';
+                let buffer = ''; // Buffer for incomplete lines
+                
+                res.on('data', (chunk) => {
+                    buffer += chunk.toString();
+                    const lines = buffer.split('\n');
+                    
+                    // Keep the last incomplete line in the buffer
+                    buffer = lines.pop() || '';
+                    
+                    for (const line of lines) {
+                        if (!line.trim()) continue;
+                        
+                        if (line.startsWith('data: ')) {
+                            const data = line.slice(6).trim();
+                            if (data === '[DONE]') continue;
+                            
+                            try {
+                                const parsed = JSON.parse(data);
+                                const content = parsed.choices[0]?.delta?.content || '';
+                                if (content) {
+                                    fullResponse += content;
+                                    if (onChunk) onChunk(content);
+                                }
+                            } catch (e) {
+                                console.error('Failed to parse SSE data:', data, e);
+                            }
+                        }
+                    }
+                });
 
-        if (onComplete) onComplete(fullResponse);
-        return fullResponse;
+                res.on('end', () => {
+                    if (onComplete) onComplete(fullResponse);
+                    resolve(fullResponse);
+                });
+            });
+
+            req.on('error', (error) => {
+                console.error('Backend API error:', error);
+                const sanitizedError = new Error(sanitizeError(error));
+                if (onError) onError(sanitizedError);
+                reject(sanitizedError);
+            });
+
+            req.write(postData);
+            req.end();
+        });
     } catch (error) {
         console.error('Azure OpenAI error:', error);
-        if (onError) onError(error);
-        throw error;
+        const sanitizedError = new Error(sanitizeError(error));
+        if (onError) onError(sanitizedError);
+        throw sanitizedError;
     }
 }
 
 /**
- * Analyze image with Azure OpenAI Vision
+ * Analyze image with Azure OpenAI Vision via backend
  */
 async function analyzeImageWithAzure(base64Image, prompt, onComplete, onError) {
     try {
-        const messages = [
-            {
-                role: 'user',
-                content: [
-                    { type: 'text', text: prompt },
-                    {
-                        type: 'image_url',
-                        image_url: {
-                            url: `data:image/jpeg;base64,${base64Image}`
-                        }
-                    }
-                ]
-            }
-        ];
-
-        const response = await openai.chat.completions.create({
-            model: AZURE_DEPLOYMENT,
-            messages: messages,
-            max_tokens: 1000,
-            temperature: 0.7
+        const url = `${BACKEND_URL}/ai/vision`;
+        const protocol = url.startsWith('https') ? https : http;
+        
+        const postData = JSON.stringify({
+            imageBase64: base64Image,
+            prompt: prompt
         });
 
-        const result = response.choices[0]?.message?.content || '';
-        if (onComplete) onComplete(result);
-        return result;
+        return new Promise((resolve, reject) => {
+            const req = protocol.request(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Content-Length': Buffer.byteLength(postData)
+                }
+            }, (res) => {
+                let data = '';
+                res.on('data', chunk => data += chunk);
+                res.on('end', () => {
+                    try {
+                        const response = JSON.parse(data);
+                        const result = response.analysis || response.result || '';
+                        if (onComplete) onComplete(result);
+                        resolve(result);
+                    } catch (e) {
+                        reject(e);
+                    }
+                });
+            });
+
+            req.on('error', (error) => {
+                console.error('Backend API error:', error);
+                const sanitizedError = new Error(sanitizeError(error));
+                if (onError) onError(sanitizedError);
+                reject(sanitizedError);
+            });
+
+            req.write(postData);
+            req.end();
+        });
     } catch (error) {
         console.error('Azure Vision error:', error);
-        if (onError) onError(error);
-        throw error;
+        const sanitizedError = new Error(sanitizeError(error));
+        if (onError) onError(sanitizedError);
+        throw sanitizedError;
     }
 }
 
@@ -106,7 +227,7 @@ async function analyzeImageWithAzure(base64Image, prompt, onComplete, onError) {
  * Check if Azure services are configured
  */
 function isAzureConfigured() {
-    return !!(AZURE_API_KEY && AZURE_ENDPOINT && AZURE_DEPLOYMENT && SPEECH_KEY && SPEECH_REGION);
+    return !!(SPEECH_KEY && SPEECH_REGION);
 }
 
 module.exports = {
@@ -115,9 +236,6 @@ module.exports = {
     startSpeechRecognition,
     stopSpeechRecognition,
     isAzureConfigured,
-    AZURE_API_KEY,
-    AZURE_ENDPOINT,
-    AZURE_DEPLOYMENT,
-    SPEECH_KEY,
-    SPEECH_REGION
+    fetchSpeechCredentials,
+    getSpeechCredentials
 };

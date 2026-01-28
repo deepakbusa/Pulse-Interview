@@ -2,58 +2,44 @@ if (require('electron-squirrel-startup')) {
     process.exit(0);
 }
 
-// Load environment variables
+// All environment variables are now fetched from the backend
+// No local .env file needed - everything comes from https://pulse-backend-1xa3.onrender.com
 const path = require('path');
-const fs = require('fs');
 const { app } = require('electron');
 
-// Determine the correct path for .env file
-// In production (packaged), extraResources are in process.resourcesPath
-// In development, they're in the project root
-const envPath = app.isPackaged 
-    ? path.join(process.resourcesPath, '.env')
-    : path.join(__dirname, '..', '.env');
-
-console.log('Loading .env from:', envPath);
-console.log('.env file exists:', fs.existsSync(envPath));
-
-require('dotenv').config({ path: envPath });
-
-// Verify critical environment variables are loaded
-const requiredVars = [
-    'REACT_APP_API_KEY',
-    'REACT_APP_API_URL',
-    'REACT_APP_DEPLOYMENT_ID',
-    'REACT_APP_SPEECH_KEY',
-    'REACT_APP_SPEECH_REGION',
-    'MONGODB_URI'
-];
-
-const missingVars = requiredVars.filter(varName => !process.env[varName]);
-if (missingVars.length > 0) {
-    console.error('❌ Missing required environment variables:', missingVars.join(', '));
-} else {
-    console.log('✅ All required environment variables loaded');
-}
+console.log('Backend URL configured - all secrets will be fetched from backend');
 
 const { BrowserWindow, shell, ipcMain } = require('electron');
 const { createWindow, updateGlobalShortcuts } = require('./utils/window');
-const { setupGeminiIpcHandlers, stopMacOSAudioCapture, sendToRenderer } = require('./utils/gemini');
 const { setupAzureIpcHandlers, stopAzureSpeechRecognition } = require('./utils/azureHandlers');
 const storage = require('./storage');
 const { connectToMongoDB, closeMongoDB } = require('./utils/mongodb');
+const azureUtils = require('./utils/azure');
 
-const geminiSessionRef = { current: null };
 let mainWindow = null;
 
+function sendToRenderer(channel, data) {
+    if (mainWindow && mainWindow.webContents) {
+        mainWindow.webContents.send(channel, data);
+    }
+}
+
 function createMainWindow() {
-    mainWindow = createWindow(sendToRenderer, geminiSessionRef);
+    mainWindow = createWindow(sendToRenderer);
     return mainWindow;
 }
 
 app.whenReady().then(async () => {
     // Initialize storage (checks version, resets if needed)
     storage.initializeStorage();
+
+    // Fetch credentials from backend
+    try {
+        await azureUtils.fetchSpeechCredentials();
+        console.log('Speech credentials fetched from backend');
+    } catch (error) {
+        console.error('Failed to fetch speech credentials:', error);
+    }
 
     // Initialize MongoDB connection
     try {
@@ -65,8 +51,7 @@ app.whenReady().then(async () => {
     }
 
     createMainWindow();
-    setupGeminiIpcHandlers(geminiSessionRef);
-    setupAzureIpcHandlers(geminiSessionRef);
+    setupAzureIpcHandlers();
     setupStorageIpcHandlers();
     setupGeneralIpcHandlers();
     
@@ -94,7 +79,6 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', async () => {
-    stopMacOSAudioCapture();
     stopAzureSpeechRecognition();
     
     // Logout current session before closing MongoDB
@@ -118,7 +102,6 @@ app.on('window-all-closed', async () => {
 });
 
 app.on('before-quit', async () => {
-    stopMacOSAudioCapture();
     stopAzureSpeechRecognition();
     
     // Logout current session
@@ -380,6 +363,32 @@ function setupStorageIpcHandlers() {
 }
 
 function setupGeneralIpcHandlers() {
+    // Get speech credentials from backend
+    ipcMain.handle('get-speech-credentials', async () => {
+        try {
+            console.log('IPC: get-speech-credentials called');
+            
+            // Check if credentials are already loaded
+            let credentials = azureUtils.getSpeechCredentials();
+            
+            if (!credentials.key || !credentials.region) {
+                console.log('Credentials not loaded, fetching from backend...');
+                credentials = await azureUtils.fetchSpeechCredentials();
+                console.log('Credentials fetched:', {
+                    key: credentials.key ? 'Present' : 'Missing',
+                    region: credentials.region || 'Missing'
+                });
+            } else {
+                console.log('Using cached credentials');
+            }
+            
+            return credentials;
+        } catch (error) {
+            console.error('Failed to get speech credentials:', error);
+            throw error;
+        }
+    });
+
     ipcMain.handle('get-app-version', async () => {
         return app.getVersion();
     });
@@ -419,7 +428,6 @@ function setupGeneralIpcHandlers() {
 
     ipcMain.handle('quit-application', async event => {
         try {
-            stopMacOSAudioCapture();
             app.quit();
             return { success: true };
         } catch (error) {
@@ -442,7 +450,7 @@ function setupGeneralIpcHandlers() {
         if (mainWindow) {
             // Also save to storage
             storage.setKeybinds(newKeybinds);
-            updateGlobalShortcuts(newKeybinds, mainWindow, sendToRenderer, geminiSessionRef);
+            updateGlobalShortcuts(newKeybinds, mainWindow, sendToRenderer);
         }
     });
 

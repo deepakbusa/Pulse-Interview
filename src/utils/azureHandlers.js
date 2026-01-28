@@ -24,15 +24,8 @@ function sendToRenderer(channel, data) {
     }
 }
 
-function setupAzureIpcHandlers(geminiSessionRef) {
-    console.log('🔧 [INIT] Setting up Azure IPC handlers...');
-    console.error('🔧 [INIT - STDERR] Setting up Azure IPC handlers...'); // stderr always shows
-    
-    // Test handler to verify IPC is working
-    ipcMain.on('test-ipc', (event, data) => {
-        console.log('✅ [TEST] IPC working!', data);
-        console.error('✅ [TEST - STDERR] IPC working!', data); // stderr always shows
-    });
+function setupAzureIpcHandlers() {
+    console.log('[INIT] Setting up Azure IPC handlers...');
     
     // Check if Azure is configured
     ipcMain.handle('azure:is-configured', async () => {
@@ -59,7 +52,7 @@ function setupAzureIpcHandlers(geminiSessionRef) {
             sendToRenderer('session-started', { 
                 success: true, 
                 provider: 'azure',
-                model: process.env.REACT_APP_DEPLOYMENT_ID 
+                model: 'gpt-4o'
             });
 
             return { success: true, message: 'Azure session started successfully' };

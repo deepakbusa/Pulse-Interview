@@ -147,12 +147,25 @@ async function initializeAzureSpeechRecognition() {
         return null;
     }
     
-    // Get Azure Speech credentials from environment
-    const speechKey = process.env.REACT_APP_SPEECH_KEY;
-    const speechRegion = process.env.REACT_APP_SPEECH_REGION;
+    // Get Azure Speech credentials from main process (which fetches from backend)
+    let speechKey, speechRegion;
+    try {
+        const { ipcRenderer } = window.require('electron');
+        console.log('Requesting speech credentials from backend...');
+        const credentials = await ipcRenderer.invoke('get-speech-credentials');
+        console.log('Received credentials:', credentials ? 'OK' : 'NULL');
+        speechKey = credentials.key;
+        speechRegion = credentials.region;
+        console.log('Speech Key:', speechKey ? 'Present' : 'Missing');
+        console.log('Speech Region:', speechRegion ? speechRegion : 'Missing');
+    } catch (error) {
+        console.error('Failed to get speech credentials:', error);
+        return null;
+    }
     
     if (!speechKey || !speechRegion) {
         console.error('Azure Speech credentials not configured');
+        console.error('Key present:', !!speechKey, 'Region present:', !!speechRegion);
         return null;
     }
     
@@ -565,8 +578,8 @@ async function startCapture(screenshotIntervalSeconds = 5, imageQuality = 'mediu
 
                 console.log('Linux system audio capture via getDisplayMedia succeeded');
 
-                // Setup audio processing for Linux system audio
-                setupLinuxSystemAudioProcessing();
+                // Audio streaming disabled - using Azure Speech SDK instead
+                // setupLinuxSystemAudioProcessing();
             } catch (systemAudioError) {
                 console.warn('System audio via getDisplayMedia failed, trying screen-only capture:', systemAudioError);
 
@@ -626,8 +639,8 @@ async function startCapture(screenshotIntervalSeconds = 5, imageQuality = 'mediu
 
             console.log('Windows capture started with loopback audio');
 
-            // Setup audio processing for Windows loopback audio only
-            setupWindowsLoopbackProcessing();
+            // Audio streaming disabled - using Azure Speech SDK instead
+            // setupWindowsLoopbackProcessing();
 
             if (audioMode === 'mic_only' || audioMode === 'both') {
                 let micStream = null;
@@ -698,6 +711,9 @@ function setupLinuxMicProcessing(micStream) {
 }
 
 function setupLinuxSystemAudioProcessing() {
+    // Audio streaming disabled - using Azure Speech SDK instead
+    return;
+    
     // Setup system audio processing for Linux (from getDisplayMedia)
     audioContext = new AudioContext({ sampleRate: SAMPLE_RATE });
     const source = audioContext.createMediaStreamSource(mediaStream);
@@ -728,6 +744,9 @@ function setupLinuxSystemAudioProcessing() {
 }
 
 function setupWindowsLoopbackProcessing() {
+    // Audio streaming disabled - using Azure Speech SDK instead
+    return;
+    
     // Setup audio processing for Windows loopback audio only
     audioContext = new AudioContext({ sampleRate: SAMPLE_RATE });
     const source = audioContext.createMediaStreamSource(mediaStream);
@@ -1080,17 +1099,20 @@ ipcRenderer.on('clear-sensitive-data', async () => {
 });
 
 // ============ AZURE IPC LISTENERS ============
+let currentStreamingResponse = ''; // Accumulate streaming chunks here
+
 ipcRenderer.on('azure:message-chunk', (event, { chunk }) => {
     console.log('Message chunk received:', chunk);
     
     // If this is the first chunk of a new response, create a new response entry
     if (isFirstAzureChunk) {
+        currentStreamingResponse = chunk;
         cheatingDaddy.addNewResponse(chunk);
         isFirstAzureChunk = false;
     } else {
-        // Otherwise, append to the current response
-        const currentResponse = cheatingDaddy.e()?.responses?.[cheatingDaddy.e()?.currentResponseIndex] || '';
-        cheatingDaddy.updateCurrentResponse(currentResponse + chunk);
+        // Otherwise, append to the accumulated response
+        currentStreamingResponse += chunk;
+        cheatingDaddy.updateCurrentResponse(currentStreamingResponse);
     }
 });
 
@@ -1099,12 +1121,14 @@ ipcRenderer.on('azure:message-complete', (event, { response }) => {
     cheatingDaddy.setStatus('Ready - Listening for questions...');
     // Reset for next message
     isFirstAzureChunk = true;
+    currentStreamingResponse = '';
 });
 
 ipcRenderer.on('azure:message-error', (event, { error }) => {
     console.error('Azure error:', error);
-    cheatingDaddy.addNewResponse(`Error: ${error}`);
-    cheatingDaddy.setStatus('Error - Please try again');
+    const userMessage = typeof error === 'string' ? error : 'Unable to process request. Please try again.';
+    cheatingDaddy.addNewResponse(`❌ ${userMessage}`);
+    cheatingDaddy.setStatus('Ready - Please try again');
 });
 
 ipcRenderer.on('azure:speech-result', (event, { text }) => {

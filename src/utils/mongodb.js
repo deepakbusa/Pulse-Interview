@@ -1,19 +1,37 @@
 const { MongoClient, ObjectId } = require('mongodb');
-require('dotenv').config();
+const { BACKEND_URL } = require('../config/backend');
+const https = require('https');
+const http = require('http');
 
-// MongoDB connection URI from environment variables - NO HARDCODED FALLBACK
-const MONGODB_URI = process.env.MONGODB_URI;
-const DATABASE_NAME = process.env.MONGODB_DATABASE || 'pulse_crackmate';
-
-// Validate required environment variables
-if (!MONGODB_URI) {
-    console.error('❌ MONGODB_URI environment variable is required!');
-    console.error('Please set MONGODB_URI in your .env file');
-    throw new Error('Missing required environment variable: MONGODB_URI');
-}
-
+const DATABASE_NAME = 'pulse_crackmate';
+let MONGODB_URI = null;
 let client = null;
 let db = null;
+
+/**
+ * Fetch MongoDB URI from backend
+ */
+async function fetchMongoDBConfig() {
+    try {
+        const url = `${BACKEND_URL}/config/mongodb`;
+        const protocol = url.startsWith('https') ? https : http;
+        
+        return new Promise((resolve, reject) => {
+            protocol.get(url, (res) => {
+                let data = '';
+                res.on('data', chunk => data += chunk);
+                res.on('end', () => {
+                    const config = JSON.parse(data);
+                    MONGODB_URI = config.uri;
+                    resolve(config);
+                });
+            }).on('error', reject);
+        });
+    } catch (error) {
+        console.error('Failed to fetch MongoDB config:', error);
+        throw error;
+    }
+}
 
 /**
  * Connect to MongoDB
@@ -24,6 +42,11 @@ async function connectToMongoDB() {
     }
 
     try {
+        // Fetch MongoDB URI from backend if not already fetched
+        if (!MONGODB_URI) {
+            await fetchMongoDBConfig();
+        }
+
         console.log('Connecting to MongoDB...');
         client = new MongoClient(MONGODB_URI, {
             maxPoolSize: 10,
@@ -33,14 +56,14 @@ async function connectToMongoDB() {
 
         await client.connect();
         db = client.db(DATABASE_NAME);
-        console.log('✅ Connected to MongoDB successfully');
+        console.log('Connected to MongoDB successfully');
 
         // Create indexes for performance
         await createIndexes();
 
         return db;
     } catch (error) {
-        console.error('❌ MongoDB connection error:', error);
+        console.error('MongoDB connection error:', error);
         throw error;
     }
 }

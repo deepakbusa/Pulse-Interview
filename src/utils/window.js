@@ -9,7 +9,7 @@ let windowResizing = false;
 let resizeAnimation = null;
 const RESIZE_ANIMATION_DURATION = 500; // milliseconds
 
-function createWindow(sendToRenderer, geminiSessionRef) {
+function createWindow(sendToRenderer) {
     // Get layout preference (default to 'normal')
     let windowWidth = 1100;
     let windowHeight = 800;
@@ -169,11 +169,11 @@ function createWindow(sendToRenderer, geminiSessionRef) {
                 keybinds = { ...defaultKeybinds, ...savedKeybinds };
             }
 
-            updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessionRef);
+            updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer);
         }, 150);
     });
 
-    setupWindowIpcHandlers(mainWindow, sendToRenderer, geminiSessionRef);
+    setupWindowIpcHandlers(mainWindow, sendToRenderer);
 
     return mainWindow;
 }
@@ -199,7 +199,7 @@ function getDefaultKeybinds() {
     };
 }
 
-function updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessionRef) {
+function updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer) {
     console.log('Updating global shortcuts with:', keybinds);
 
     // Unregister all existing shortcuts
@@ -405,11 +405,6 @@ function updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessi
                 if (mainWindow && !mainWindow.isDestroyed()) {
                     mainWindow.hide();
 
-                    if (geminiSessionRef.current) {
-                        geminiSessionRef.current.close();
-                        geminiSessionRef.current = null;
-                    }
-
                     sendToRenderer('clear-sensitive-data');
 
                     setTimeout(() => {
@@ -425,7 +420,7 @@ function updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessi
     }
 }
 
-function setupWindowIpcHandlers(mainWindow, sendToRenderer, geminiSessionRef) {
+function setupWindowIpcHandlers(mainWindow, sendToRenderer) {
     ipcMain.on('view-changed', (event, view) => {
         if (view !== 'assistant' && !mainWindow.isDestroyed()) {
             mainWindow.setIgnoreMouseEvents(false);
@@ -440,7 +435,7 @@ function setupWindowIpcHandlers(mainWindow, sendToRenderer, geminiSessionRef) {
 
     ipcMain.on('update-keybinds', (event, newKeybinds) => {
         if (!mainWindow.isDestroyed()) {
-            updateGlobalShortcuts(newKeybinds, mainWindow, sendToRenderer, geminiSessionRef);
+            updateGlobalShortcuts(newKeybinds, mainWindow, sendToRenderer);
         }
     });
 

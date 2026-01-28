@@ -5,7 +5,6 @@ import { CustomizeView } from '../views/CustomizeView.js';
 import { HelpView } from '../views/HelpView.js';
 import { HistoryView } from '../views/HistoryView.js';
 import { AssistantView } from '../views/AssistantView.js';
-import { OnboardingView } from '../views/OnboardingView.js';
 import { LoginView } from '../views/LoginView.js';
 
 export class PulseApp extends LitElement {
@@ -52,11 +51,6 @@ export class PulseApp extends LitElement {
 
         .main-content.assistant-view {
             padding: 12px;
-        }
-
-        .main-content.onboarding-view {
-            padding: 0;
-            background: transparent;
         }
 
         .main-content.settings-view,
@@ -150,15 +144,10 @@ export class PulseApp extends LitElement {
                 cheatingDaddy.storage.getPreferences()
             ]);
 
-            // Check authentication and onboarding status
-            if (!config.onboarded) {
-                this.currentView = 'onboarding';
-            } else {
-                // SECURITY: Always require login on startup - no bypass
-                // Even if credentials exist locally, user must authenticate every time
-                this.currentView = 'login';
-                this.isAuthenticated = false;
-            }
+            // SECURITY: Always require login on startup - no bypass
+            // Even if credentials exist locally, user must authenticate every time
+            this.currentView = 'login';
+            this.isAuthenticated = false;
 
             // Apply background appearance (color + transparency)
             this.applyBackgroundAppearance(
@@ -342,10 +331,9 @@ export class PulseApp extends LitElement {
                 window.cheatingDaddy.stopWebSpeech();
             }
 
-            // Close the session (both Gemini and Azure)
+            // Close the Azure session
             if (window.require) {
                 const { ipcRenderer } = window.require('electron');
-                await ipcRenderer.invoke('close-session');
                 await ipcRenderer.invoke('azure:stop-session');
             }
             this.sessionActive = false;
@@ -522,11 +510,6 @@ export class PulseApp extends LitElement {
         const viewKey = `${this.currentView}-${this.selectedProfile}-${this.selectedLanguage}`;
 
         switch (this.currentView) {
-            case 'onboarding':
-                return html`
-                    <onboarding-view .onComplete=${() => this.handleOnboardingComplete()} .onClose=${() => this.handleClose()}></onboarding-view>
-                `;
-
             case 'login':
                 return html`
                     <login-view .onLogin=${() => this.handleLoginSuccess()}></login-view>
@@ -596,7 +579,6 @@ export class PulseApp extends LitElement {
     render() {
         const viewClassMap = {
             'assistant': 'assistant-view',
-            'onboarding': 'onboarding-view',
             'customize': 'settings-view',
             'help': 'help-view',
             'history': 'history-view',

@@ -350,7 +350,7 @@ export class OnboardingView extends LitElement {
 
         const { width, height } = this.canvas;
         let colors = this.colorSchemes[this.currentSlide];
-
+F
         // Handle color scheme transitions
         if (this.isTransitioning && this.previousColorScheme) {
             const elapsed = timestamp - this.transitionStartTime;
