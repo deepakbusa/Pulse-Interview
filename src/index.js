@@ -16,6 +16,7 @@ const storage = require('./storage');
 const { connectToMongoDB, closeMongoDB } = require('./utils/mongodb');
 const azureUtils = require('./utils/azure');
 const { pingBackend } = require('./config/backend');
+const sessionMonitor = require('./utils/sessionMonitor');
 
 let mainWindow = null;
 
@@ -29,6 +30,36 @@ setInterval(() => {
 function sendToRenderer(channel, data) {
     if (mainWindow && mainWindow.webContents) {
         mainWindow.webContents.send(channel, data);
+    }
+}
+
+/**
+ * Handle force logout when admin ends session
+ */
+async function handleForceLogout(reason) {
+    console.log('🔴 Force logout triggered:', reason);
+    
+    try {
+        // Stop session monitoring
+        sessionMonitor.stopSessionMonitoring();
+        
+        // Logout current session from storage
+        console.log('📤 Logging out session from storage...');
+        await storage.logoutCurrentSession();
+        console.log('✅ Session cleared from storage');
+        
+        // Reload window immediately - will show login screen since session is cleared
+        console.log('🔄 Reloading window to show login screen...');
+        if (mainWindow && mainWindow.webContents) {
+            mainWindow.webContents.reload();
+            console.log('✅ Window reloaded');
+        }
+    } catch (error) {
+        console.error('❌ Error during force logout:', error);
+        // Still reload even if logout fails
+        if (mainWindow && mainWindow.webContents) {
+            mainWindow.webContents.reload();
+        }
     }
 }
 
@@ -228,6 +259,16 @@ function setupStorageIpcHandlers() {
         try {
             // Use MongoDB for authentication
             const isValid = await storage.verifyPulseCredentials(userId, password);
+            
+            // If login successful, start session monitoring
+            if (isValid && isValid.success) {
+                const session = storage.getCurrentSession();
+                if (session && session.sessionId) {
+                    console.log('🔍 Starting session monitoring for:', session.sessionId);
+                    sessionMonitor.startSessionMonitoring(session.sessionId, handleForceLogout);
+                }
+            }
+            
             return { success: true, data: isValid };
         } catch (error) {
             console.error('Error verifying pulse credentials:', error);
@@ -253,6 +294,22 @@ function setupStorageIpcHandlers() {
             return { success: true, data: users };
         } catch (error) {
             console.error('Error getting all users:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    // Logout handler - stops session monitoring
+    ipcMain.handle('storage:logout', async () => {
+        try {
+            // Stop session monitoring first
+            console.log('🚫Stopping session monitoring...');
+            sessionMonitor.stopSessionMonitoring();
+            
+            // Then logout
+            await storage.logoutCurrentSession();
+            return { success: true };
+        } catch (error) {
+            console.error('Error logging out:', error);
             return { success: false, error: error.message };
         }
     });

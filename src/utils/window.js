@@ -28,6 +28,7 @@ function createWindow(sendToRenderer) {
             enableBlinkFeatures: 'GetDisplayMedia',
             webSecurity: true,
             allowRunningInsecureContent: false,
+            //devTools: true, // Disable DevTools in production
         },
         backgroundColor: '#00000000',
     });
@@ -85,6 +86,7 @@ function createWindow(sendToRenderer) {
     mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 
     // Handle window reload (Ctrl+R) - logout session before reload
+    // Also block DevTools shortcuts
     mainWindow.webContents.on('before-input-event', async (event, input) => {
         if (input.type === 'keyDown' && input.key === 'r' && (input.control || input.meta)) {
             console.log('Window reload detected, logging out session...');
@@ -93,6 +95,20 @@ function createWindow(sendToRenderer) {
                 console.log('✅ Session logged out before reload');
             } catch (error) {
                 console.error('Error logging out session on reload:', error);
+            }
+        }
+        
+        // Block DevTools shortcuts: F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+Shift+C
+        if (input.type === 'keyDown') {
+            const isDevToolsShortcut = 
+                input.key === 'F12' ||
+                (input.shift && input.control && (input.key === 'I' || input.key === 'i')) ||
+                (input.shift && input.control && (input.key === 'J' || input.key === 'j')) ||
+                (input.shift && input.control && (input.key === 'C' || input.key === 'c'));
+            
+            if (isDevToolsShortcut) {
+                event.preventDefault();
+                console.log('DevTools shortcut blocked');
             }
         }
     });
@@ -132,6 +148,12 @@ function createWindow(sendToRenderer) {
             console.warn('Could not hide from Mission Control:', error.message);
         }
     }
+
+    // Block right-click context menu (prevents "Inspect Element")
+    mainWindow.webContents.on('context-menu', (event, params) => {
+        event.preventDefault();
+        console.log('Context menu blocked');
+    });
 
     // Handle navigation/reload events
     mainWindow.webContents.on('did-start-loading', async () => {

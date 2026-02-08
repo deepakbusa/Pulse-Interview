@@ -228,21 +228,37 @@ async function initializeAzureSpeechRecognition() {
         }
     };
     
-    recognizer.canceled = (s, e) => {
-        console.log('Speech canceled:', e.reason);
-        if (e.reason === sdk.CancellationReason.Error) {
-            console.error('Speech error:', e.errorDetails);
-            cheatingDaddy.setStatus('Speech recognition error - Check microphone');
-            stopAzureSpeechRecognition();
-        }
-    };
-    
     recognizer.sessionStopped = (s, e) => {
-        console.log('Speech session stopped');
+        console.log('Speech session stopped - Auto-restarting in 2 seconds...');
         isSpeechActive = false;
         if (window.require) {
             const { ipcRenderer } = window.require('electron');
             ipcRenderer.send('azure:speech-session-stopped');
+        }
+        
+        // Auto-restart after 2 seconds to handle timeout/idle issues
+        setTimeout(() => {
+            console.log('Auto-restarting speech recognition...');
+            startAzureSpeechRecognition().catch(err => {
+                console.error('Failed to auto-restart speech recognition:', err);
+            });
+        }, 2000);
+    };
+    
+    // Add error handler for unexpected errors
+    recognizer.canceled = (s, e) => {
+        console.log('Speech canceled:', e.reason, e.errorDetails);
+        if (e.reason === sdk.CancellationReason.Error) {
+            console.error('Speech error - Auto-restarting:', e.errorDetails);
+            cheatingDaddy.setStatus('Speech error - Restarting...');
+            
+            // Auto-restart on error
+            setTimeout(() => {
+                console.log('Restarting speech after error...');
+                startAzureSpeechRecognition().catch(err => {
+                    console.error('Failed to restart speech after error:', err);
+                });
+            }, 3000);
         }
     };
     

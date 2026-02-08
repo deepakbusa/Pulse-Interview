@@ -428,6 +428,7 @@ export class PulseApp extends LitElement {
         // Set up IPC listeners if needed
         if (window.require) {
             const { ipcRenderer } = window.require('electron');
+            
             ipcRenderer.on('new-response', (_, response) => {
                 this.addNewResponse(response);
             });
@@ -727,6 +728,8 @@ export class PulseApp extends LitElement {
         this.isAuthenticated = true;
         this.currentView = 'main';
     }
+
+
 
     updated(changedProperties) {
         super.updated(changedProperties);
