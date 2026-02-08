@@ -28,7 +28,7 @@ function createWindow(sendToRenderer) {
             enableBlinkFeatures: 'GetDisplayMedia',
             webSecurity: true,
             allowRunningInsecureContent: false,
-            //devTools: true, // Disable DevTools in production
+            devTools: false, // Disable DevTools in production
         },
         backgroundColor: '#00000000',
     });
