@@ -52,7 +52,7 @@ function setupAzureIpcHandlers() {
             sendToRenderer('session-started', { 
                 success: true, 
                 provider: 'azure',
-                model: 'gpt-4o'
+                model: 'gpt-5-nano'
             });
 
             return { success: true, message: 'Azure session started successfully' };
@@ -156,13 +156,13 @@ function setupAzureIpcHandlers() {
                         logScreenshotAnalysisAsync({
                             prompt: fullPrompt,
                             response: result,
-                            model: 'gpt-4o-vision',
+                            model: 'gpt-5-nano',
                             latencyMs,
                         });
                         
                         logAPIRequestAsync({
                             service: 'azure_vision',
-                            model: 'gpt-4o-vision',
+                            model: 'gpt-6-luna',
                             endpoint: '/vision/analyze',
                             latencyMs,
                             statusCode: 200,

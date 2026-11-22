@@ -350,7 +350,7 @@ async function populateDatabase() {
                     duration: service.avgDuration + Math.floor((Math.random() - 0.5) * 500),
                     timestamp: randomDate(30),
                     metadata: {
-                        model: service.service === 'azure-openai' ? 'gpt-4o' : undefined,
+                        model: service.service === 'azure-openai' ? 'gpt-5-nano' : undefined,
                         tokensUsed: service.service === 'azure-openai' ? Math.floor(Math.random() * 2000) + 500 : undefined,
                     },
                 });
@@ -394,7 +394,7 @@ async function populateDatabase() {
                     profile: user.preferences.profile,
                     timestamp: new Date(baseTimestamp.getTime() + randomDuration(1000, 3000)),
                     metadata: {
-                        model: 'gpt-4o',
+                        model: 'gpt-6-luna',
                         tokensUsed: Math.floor(Math.random() * 1000) + 200,
                         processingTime: randomDuration(800, 2500),
                     },
