@@ -73,13 +73,13 @@ async function createSystemAudioConfig(sdk) {
         // Check for audio tracks
         const audioTracks = stream.getAudioTracks();
         if (audioTracks.length === 0) {
-            console.warn('⚠️ No audio track found in capture');
+            console.warn('No audio track found in capture');
             // Stop video track if no audio
             stream.getVideoTracks().forEach(track => track.stop());
             throw new Error('No audio track available');
         }
 
-        console.log('✅ System audio capture enabled:', audioTracks[0].label);
+        console.log('System audio capture enabled:', audioTracks[0].label);
         
         // Stop video track as we only need audio
         stream.getVideoTracks().forEach(track => track.stop());
@@ -124,18 +124,18 @@ async function createSystemAudioConfig(sdk) {
         window.systemAudioProcessor = processor;
         window.systemPushStream = pushStream;
         
-        console.log('🎵 System audio pipeline configured');
+        console.log('System audio pipeline configured');
         
         return sdk.AudioConfig.fromStreamInput(pushStream);
         
     } catch (error) {
-        console.error('❌ Error setting up system audio capture:', error);
-        console.log('ℹ️ Make sure to:');
+        console.error('Error setting up system audio capture:', error);
+        console.log('Make sure to:');
         console.log('   1. Select "Entire screen" or a window in the system dialog');
         console.log('   2. Check "Share audio" checkbox in the dialog');
         console.log('   3. Grant permission when prompted');
         console.log('');
-        console.log('⚠️ Falling back to microphone input');
+        console.log('Falling back to microphone input');
         return sdk.AudioConfig.fromDefaultMicrophoneInput();
     }
 }
@@ -147,12 +147,25 @@ async function initializeAzureSpeechRecognition() {
         return null;
     }
     
-    // Get Azure Speech credentials from environment
-    const speechKey = process.env.REACT_APP_SPEECH_KEY;
-    const speechRegion = process.env.REACT_APP_SPEECH_REGION;
+    // Get Azure Speech credentials from main process (which fetches from backend)
+    let speechKey, speechRegion;
+    try {
+        const { ipcRenderer } = window.require('electron');
+        console.log('Requesting speech credentials from backend...');
+        const credentials = await ipcRenderer.invoke('get-speech-credentials');
+        console.log('Received credentials:', credentials ? 'OK' : 'NULL');
+        speechKey = credentials.key;
+        speechRegion = credentials.region;
+        console.log('Speech Key:', speechKey ? 'Present' : 'Missing');
+        console.log('Speech Region:', speechRegion ? speechRegion : 'Missing');
+    } catch (error) {
+        console.error('Failed to get speech credentials:', error);
+        return null;
+    }
     
     if (!speechKey || !speechRegion) {
         console.error('Azure Speech credentials not configured');
+        console.error('Key present:', !!speechKey, 'Region present:', !!speechRegion);
         return null;
     }
     
@@ -167,7 +180,7 @@ async function initializeAzureSpeechRecognition() {
     recognizer.recognizing = (s, e) => {
         if (e.result.reason === sdk.ResultReason.RecognizingSpeech && e.result.text) {
             const text = e.result.text;
-            console.log('Azure Speech recognizing (interim):', text);
+            console.log('Speech recognizing (interim):', text);
             
             // Send interim result to renderer for real-time display
             if (window.require) {
@@ -181,13 +194,26 @@ async function initializeAzureSpeechRecognition() {
     recognizer.recognized = async (s, e) => {
         if (e.result.reason === sdk.ResultReason.RecognizedSpeech && e.result.text) {
             const text = e.result.text;
-            console.log('Azure Speech recognized (final):', text);
+            console.log('Speech recognized (final):', text);
             
             // ONLY send final result to renderer for display accumulation
             // NO AUTO-SEND - user must press Ctrl+D to send
             if (window.require) {
                 const { ipcRenderer } = window.require('electron');
+                
+                // Test IPC first
+                console.log('Testing IPC communication...');
+                ipcRenderer.send('test-ipc', { test: 'data' });
+                
                 ipcRenderer.send('azure:speech-recognized', { text });
+                
+                // Log speech transcription request
+                console.log('Sending speech request log to main process');
+                ipcRenderer.send('azure:log-speech-request', { 
+                    textLength: text.length,
+                    timestamp: Date.now()
+                });
+                console.log('Speech log IPC sent');
             }
             
             // DO NOT auto-send or process - wait for Ctrl+D
@@ -195,28 +221,44 @@ async function initializeAzureSpeechRecognition() {
     };
     
     recognizer.sessionStarted = (s, e) => {
-        console.log('Azure Speech session started');
+        console.log('Speech session started');
         if (window.require) {
             const { ipcRenderer } = window.require('electron');
             ipcRenderer.send('azure:speech-session-started');
         }
     };
     
-    recognizer.canceled = (s, e) => {
-        console.log('Azure Speech canceled:', e.reason);
-        if (e.reason === sdk.CancellationReason.Error) {
-            console.error('Azure Speech error:', e.errorDetails);
-            cheatingDaddy.setStatus('Speech recognition error - Check microphone');
-            stopAzureSpeechRecognition();
-        }
-    };
-    
     recognizer.sessionStopped = (s, e) => {
-        console.log('Azure Speech session stopped');
+        console.log('Speech session stopped - Auto-restarting in 2 seconds...');
         isSpeechActive = false;
         if (window.require) {
             const { ipcRenderer } = window.require('electron');
             ipcRenderer.send('azure:speech-session-stopped');
+        }
+        
+        // Auto-restart after 2 seconds to handle timeout/idle issues
+        setTimeout(() => {
+            console.log('Auto-restarting speech recognition...');
+            startAzureSpeechRecognition().catch(err => {
+                console.error('Failed to auto-restart speech recognition:', err);
+            });
+        }, 2000);
+    };
+    
+    // Add error handler for unexpected errors
+    recognizer.canceled = (s, e) => {
+        console.log('Speech canceled:', e.reason, e.errorDetails);
+        if (e.reason === sdk.CancellationReason.Error) {
+            console.error('Speech error - Auto-restarting:', e.errorDetails);
+            cheatingDaddy.setStatus('Speech error - Restarting...');
+            
+            // Auto-restart on error
+            setTimeout(() => {
+                console.log('Restarting speech after error...');
+                startAzureSpeechRecognition().catch(err => {
+                    console.error('Failed to restart speech after error:', err);
+                });
+            }, 3000);
         }
     };
     
@@ -226,7 +268,7 @@ async function initializeAzureSpeechRecognition() {
 async function startAzureSpeechRecognition() {
     // Stop any existing recognizer first
     if (azureSpeechRecognizer && isSpeechActive) {
-        console.log('Stopping existing Azure Speech Recognition...');
+        console.log('Stopping existing Speech Recognition...');
         await new Promise((resolve) => {
             azureSpeechRecognizer.stopContinuousRecognitionAsync(
                 () => {
@@ -243,7 +285,7 @@ async function startAzureSpeechRecognition() {
     }
     
     // Always create a fresh recognizer to ensure clean state
-    console.log('🎤 Initializing new Azure Speech Recognition...');
+    console.log('Initializing new Speech Recognition...');
     azureSpeechRecognizer = await initializeAzureSpeechRecognition();
     
     if (!azureSpeechRecognizer) {
@@ -257,12 +299,12 @@ async function startAzureSpeechRecognition() {
             azureSpeechRecognizer.startContinuousRecognitionAsync(
                 () => {
                     isSpeechActive = true;
-                    console.log('✅ Azure Speech Recognition started successfully');
-                    cheatingDaddy.setStatus('🎤 Listening... (Azure Speech Active)');
+                    console.log('Speech Recognition started successfully');
+                    cheatingDaddy.setStatus('Listening...');
                     resolve();
                 },
                 (err) => {
-                    console.error('❌ Failed to start Azure Speech recognition:', err);
+                    console.error('Failed to start Azure Speech recognition:', err);
                     cheatingDaddy.setStatus('Failed to start voice recognition');
                     reject(err);
                 }
@@ -275,11 +317,11 @@ async function startAzureSpeechRecognition() {
 
 function stopAzureSpeechRecognition() {
     if (azureSpeechRecognizer && isSpeechActive) {
-        console.log('🛑 Stopping Azure Speech Recognition...');
+        console.log('Stopping Speech Recognition...');
         azureSpeechRecognizer.stopContinuousRecognitionAsync(
             () => {
                 isSpeechActive = false;
-                console.log('✅ Azure Speech Recognition stopped');
+                console.log('Speech Recognition stopped');
                 cheatingDaddy.setStatus('Voice recognition stopped');
                 
                 // Cleanup system audio resources
@@ -289,7 +331,7 @@ function stopAzureSpeechRecognition() {
                 azureSpeechRecognizer = null;
             },
             (err) => {
-                console.error('❌ Error stopping Azure Speech recognition:', err);
+                console.error('Error stopping Azure Speech recognition:', err);
                 isSpeechActive = false;
                 cleanupSystemAudio();
                 azureSpeechRecognizer = null;
@@ -309,7 +351,7 @@ function cleanupSystemAudio() {
     if (window.systemAudioStream) {
         window.systemAudioStream.getTracks().forEach(track => track.stop());
         window.systemAudioStream = null;
-        console.log('🛑 System audio stream stopped');
+        console.log('System audio stream stopped');
     }
     if (window.systemAudioProcessor) {
         window.systemAudioProcessor.disconnect();
@@ -373,6 +415,10 @@ const storage = {
     async hasPulseCredentials() {
         const result = await ipcRenderer.invoke('storage:has-pulse-credentials');
         return result.success ? result.data : false;
+    },
+    async getAllUsers() {
+        const result = await ipcRenderer.invoke('storage:get-all-users');
+        return result.success ? result.data : [];
     },
 
     // Preferences
@@ -548,8 +594,8 @@ async function startCapture(screenshotIntervalSeconds = 5, imageQuality = 'mediu
 
                 console.log('Linux system audio capture via getDisplayMedia succeeded');
 
-                // Setup audio processing for Linux system audio
-                setupLinuxSystemAudioProcessing();
+                // Audio streaming disabled - using Azure Speech SDK instead
+                // setupLinuxSystemAudioProcessing();
             } catch (systemAudioError) {
                 console.warn('System audio via getDisplayMedia failed, trying screen-only capture:', systemAudioError);
 
@@ -609,8 +655,8 @@ async function startCapture(screenshotIntervalSeconds = 5, imageQuality = 'mediu
 
             console.log('Windows capture started with loopback audio');
 
-            // Setup audio processing for Windows loopback audio only
-            setupWindowsLoopbackProcessing();
+            // Audio streaming disabled - using Azure Speech SDK instead
+            // setupWindowsLoopbackProcessing();
 
             if (audioMode === 'mic_only' || audioMode === 'both') {
                 let micStream = null;
@@ -681,6 +727,9 @@ function setupLinuxMicProcessing(micStream) {
 }
 
 function setupLinuxSystemAudioProcessing() {
+    // Audio streaming disabled - using Azure Speech SDK instead
+    return;
+    
     // Setup system audio processing for Linux (from getDisplayMedia)
     audioContext = new AudioContext({ sampleRate: SAMPLE_RATE });
     const source = audioContext.createMediaStreamSource(mediaStream);
@@ -711,6 +760,9 @@ function setupLinuxSystemAudioProcessing() {
 }
 
 function setupWindowsLoopbackProcessing() {
+    // Audio streaming disabled - using Azure Speech SDK instead
+    return;
+    
     // Setup audio processing for Windows loopback audio only
     audioContext = new AudioContext({ sampleRate: SAMPLE_RATE });
     const source = audioContext.createMediaStreamSource(mediaStream);
@@ -822,9 +874,9 @@ async function captureScreenshot(imageQuality = 'medium', isManual = false) {
                 });
 
                 if (result.success) {
-                    console.log(`✅ Azure Vision auto-analysis completed (${offscreenCanvas.width}x${offscreenCanvas.height})`);
+                    console.log(`Vision auto-analysis completed (${offscreenCanvas.width}x${offscreenCanvas.height})`);
                 } else {
-                    console.error('❌ Failed automatic screenshot analysis:', result.error);
+                    console.error('Failed automatic screenshot analysis:', result.error);
                 }
             };
             reader.readAsDataURL(blob);
@@ -908,7 +960,7 @@ async function captureManualScreenshot(imageQuality = null) {
                 }
 
                 // Send image to Azure OpenAI Vision
-                console.log('📸 Sending screenshot to Azure Vision for analysis...');
+                console.log('📸 Sending screenshot to Vision for analysis...');
                 
                 const result = await ipcRenderer.invoke('azure:analyze-screenshot', {
                     base64Image: base64data,
@@ -916,11 +968,11 @@ async function captureManualScreenshot(imageQuality = null) {
                 });
 
                 if (result.success) {
-                    console.log('✅ Azure Vision analysis completed');
+                    console.log('Vision analysis completed');
                     // Add the analysis as a new response
                     cheatingDaddy.addNewResponse(result.analysis);
                 } else {
-                    console.error('❌ Failed to analyze screenshot:', result.error);
+                    console.error('Failed to analyze screenshot:', result.error);
                     cheatingDaddy.addNewResponse(`Error analyzing screenshot: ${result.error}`);
                 }
             };
@@ -988,19 +1040,23 @@ async function sendTextMessage(text) {
     try {
         // Check if Azure is active
         if (isAzureActive) {
-            console.log('Sending text message to Azure OpenAI:', text);
+            console.log('Sending text message to AI:', text);
             
             // Reset the first chunk flag for new message
             isFirstAzureChunk = true;
+            
+            // Show immediate feedback
+            cheatingDaddy.setStatus('AI is thinking...');
             
             const result = await ipcRenderer.invoke('azure:send-message', { 
                 message: text,
                 context: null 
             });
             if (result.success) {
-                console.log('Azure text message sent successfully');
+                console.log('Text message sent successfully');
             } else {
                 console.error('Failed to send Azure text message:', result.error);
+                cheatingDaddy.setStatus('Error - Please try again');
             }
             return result;
         } else {
@@ -1042,7 +1098,7 @@ ipcRenderer.on('save-session-context', async (event, data) => {
     }
 });
 
-// Listen for screen analysis responses (from ctrl+enter)
+// Listen for screen analysis responses (from ctrl+/)
 ipcRenderer.on('save-screen-analysis', async (event, data) => {
     try {
         await storage.saveSession(data.sessionId, {
@@ -1063,31 +1119,36 @@ ipcRenderer.on('clear-sensitive-data', async () => {
 });
 
 // ============ AZURE IPC LISTENERS ============
+let currentStreamingResponse = ''; // Accumulate streaming chunks here
+
 ipcRenderer.on('azure:message-chunk', (event, { chunk }) => {
-    console.log('Azure chunk received:', chunk);
+    console.log('Message chunk received:', chunk);
     
     // If this is the first chunk of a new response, create a new response entry
     if (isFirstAzureChunk) {
+        currentStreamingResponse = chunk;
         cheatingDaddy.addNewResponse(chunk);
         isFirstAzureChunk = false;
     } else {
-        // Otherwise, append to the current response
-        const currentResponse = cheatingDaddy.e()?.responses?.[cheatingDaddy.e()?.currentResponseIndex] || '';
-        cheatingDaddy.updateCurrentResponse(currentResponse + chunk);
+        // Otherwise, append to the accumulated response
+        currentStreamingResponse += chunk;
+        cheatingDaddy.updateCurrentResponse(currentStreamingResponse);
     }
 });
 
 ipcRenderer.on('azure:message-complete', (event, { response }) => {
-    console.log('Azure response complete');
+    console.log('Response complete');
     cheatingDaddy.setStatus('Ready - Listening for questions...');
     // Reset for next message
     isFirstAzureChunk = true;
+    currentStreamingResponse = '';
 });
 
 ipcRenderer.on('azure:message-error', (event, { error }) => {
     console.error('Azure error:', error);
-    cheatingDaddy.addNewResponse(`Error: ${error}`);
-    cheatingDaddy.setStatus('Error - Please try again');
+    const userMessage = typeof error === 'string' ? error : 'Unable to process request. Please try again.';
+    cheatingDaddy.addNewResponse(`❌ ${userMessage}`);
+    cheatingDaddy.setStatus('Ready - Please try again');
 });
 
 ipcRenderer.on('azure:speech-result', (event, { text }) => {
@@ -1103,7 +1164,7 @@ ipcRenderer.on('azure:speech-error', (event, { error }) => {
 
 ipcRenderer.on('session-started', (event, { provider, model }) => {
     console.log(`Session started with ${provider} (${model})`);
-    cheatingDaddy.setStatus(`Connected to ${provider} - ${model}`);
+    cheatingDaddy.setStatus('AI connected');
 });
 
 ipcRenderer.on('session-stopped', (event) => {
@@ -1115,7 +1176,7 @@ ipcRenderer.on('session-stopped', (event) => {
 function handleShortcut(shortcutKey) {
     const currentView = cheatingDaddy.getCurrentView();
 
-    if (shortcutKey === 'ctrl+enter' || shortcutKey === 'cmd+enter') {
+    if (shortcutKey === 'ctrl+/' || shortcutKey === 'cmd+/') {
         if (currentView === 'main') {
             cheatingDaddy.element().handleStart();
         } else {

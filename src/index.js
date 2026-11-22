@@ -2,53 +2,69 @@ if (require('electron-squirrel-startup')) {
     process.exit(0);
 }
 
-// Load environment variables
+// All environment variables are now fetched from the backend
+// No local .env file needed - everything comes from https://pulse-backend-1xa3.onrender.com
 const path = require('path');
-const fs = require('fs');
 const { app } = require('electron');
 
-// Determine the correct path for .env file
-// In production (packaged), extraResources are in process.resourcesPath
-// In development, they're in the project root
-const envPath = app.isPackaged 
-    ? path.join(process.resourcesPath, '.env')
-    : path.join(__dirname, '..', '.env');
+console.log('Backend URL configured - all secrets will be fetched from backend');
 
-console.log('Loading .env from:', envPath);
-console.log('.env file exists:', fs.existsSync(envPath));
-
-require('dotenv').config({ path: envPath });
-
-// Verify critical environment variables are loaded
-const requiredVars = [
-    'REACT_APP_API_KEY',
-    'REACT_APP_API_URL',
-    'REACT_APP_DEPLOYMENT_ID',
-    'REACT_APP_SPEECH_KEY',
-    'REACT_APP_SPEECH_REGION',
-    'REACT_APP_FIREBASE_API_KEY',
-    'REACT_APP_FIREBASE_DATABASE_URL'
-];
-
-const missingVars = requiredVars.filter(varName => !process.env[varName]);
-if (missingVars.length > 0) {
-    console.error('❌ Missing required environment variables:', missingVars.join(', '));
-} else {
-    console.log('✅ All required environment variables loaded');
-}
-
-const { BrowserWindow, shell, ipcMain } = require('electron');
+const { BrowserWindow, shell, ipcMain, globalShortcut } = require('electron');
 const { createWindow, updateGlobalShortcuts } = require('./utils/window');
-const { setupGeminiIpcHandlers, stopMacOSAudioCapture, sendToRenderer } = require('./utils/gemini');
 const { setupAzureIpcHandlers, stopAzureSpeechRecognition } = require('./utils/azureHandlers');
 const storage = require('./storage');
-const { initializeFirebase, verifyPulseCredentials, isFirebaseConfigured } = require('./utils/firebase');
+const { connectToMongoDB, closeMongoDB } = require('./utils/mongodb');
+const azureUtils = require('./utils/azure');
+const { pingBackend } = require('./config/backend');
+const sessionMonitor = require('./utils/sessionMonitor');
 
-const geminiSessionRef = { current: null };
 let mainWindow = null;
 
+// Ping backend every 10 minutes to prevent cold starts
+setInterval(() => {
+    pingBackend().then(success => {
+        if (success) console.log('Backend keepalive ping successful');
+    });
+}, 10 * 60 * 1000); // 10 minutes
+
+function sendToRenderer(channel, data) {
+    if (mainWindow && mainWindow.webContents) {
+        mainWindow.webContents.send(channel, data);
+    }
+}
+
+/**
+ * Handle force logout when admin ends session
+ */
+async function handleForceLogout(reason) {
+    console.log('🔴 Force logout triggered:', reason);
+    
+    try {
+        // Stop session monitoring
+        sessionMonitor.stopSessionMonitoring();
+        
+        // Logout current session from storage
+        console.log('📤 Logging out session from storage...');
+        await storage.logoutCurrentSession();
+        console.log('✅ Session cleared from storage');
+        
+        // Reload window immediately - will show login screen since session is cleared
+        console.log('🔄 Reloading window to show login screen...');
+        if (mainWindow && mainWindow.webContents) {
+            mainWindow.webContents.reload();
+            console.log('✅ Window reloaded');
+        }
+    } catch (error) {
+        console.error('❌ Error during force logout:', error);
+        // Still reload even if logout fails
+        if (mainWindow && mainWindow.webContents) {
+            mainWindow.webContents.reload();
+        }
+    }
+}
+
 function createMainWindow() {
-    mainWindow = createWindow(sendToRenderer, geminiSessionRef);
+    mainWindow = createWindow(sendToRenderer);
     return mainWindow;
 }
 
@@ -56,31 +72,91 @@ app.whenReady().then(async () => {
     // Initialize storage (checks version, resets if needed)
     storage.initializeStorage();
 
-    // Initialize Firebase
-    if (isFirebaseConfigured()) {
-        initializeFirebase();
-    } else {
-        console.warn('Firebase not configured - add credentials to .env file');
+    // Ping backend immediately to wake it up
+    console.log('Waking up backend...');
+    await pingBackend();
+
+    // Fetch credentials from backend
+    try {
+        await azureUtils.fetchSpeechCredentials();
+        console.log('Speech credentials fetched from backend');
+    } catch (error) {
+        console.error('Failed to fetch speech credentials:', error);
+    }
+
+    // Initialize MongoDB connection
+    try {
+        await connectToMongoDB();
+        console.log('✅ MongoDB connected successfully');
+    } catch (error) {
+        console.error('❌ Failed to connect to MongoDB:', error);
+        // Continue anyway - app can still work with local storage
     }
 
     createMainWindow();
-    setupGeminiIpcHandlers(geminiSessionRef);
-    setupAzureIpcHandlers(geminiSessionRef);
+    setupAzureIpcHandlers();
     setupStorageIpcHandlers();
     setupGeneralIpcHandlers();
+    
+    // Handle renderer process crashes - logout session
+    mainWindow.webContents.on('render-process-gone', async (event, details) => {
+        console.error('❌ Renderer process crashed:', details.reason);
+        try {
+            await storage.logoutCurrentSession();
+            console.log('✅ Session logged out after crash');
+        } catch (error) {
+            console.error('Error logging out session after crash:', error);
+        }
+    });
+    
+    // Handle unresponsive renderer - logout and reload
+    mainWindow.webContents.on('unresponsive', async () => {
+        console.warn('⚠️ Renderer became unresponsive');
+        try {
+            await storage.logoutCurrentSession();
+            console.log('✅ Session logged out due to unresponsiveness');
+        } catch (error) {
+            console.error('Error logging out session:', error);
+        }
+    });
 });
 
-app.on('window-all-closed', () => {
-    stopMacOSAudioCapture();
+app.on('window-all-closed', async () => {
     stopAzureSpeechRecognition();
+    
+    // Logout current session before closing MongoDB
+    try {
+        await storage.logoutCurrentSession();
+        console.log('✅ Session logged out');
+    } catch (error) {
+        console.error('Error logging out session:', error);
+    }
+    
+    // Close MongoDB connection after session cleanup
+    try {
+        await closeMongoDB();
+    } catch (error) {
+        console.error('Error closing MongoDB:', error);
+    }
+    
     if (process.platform !== 'darwin') {
         app.quit();
     }
 });
 
-app.on('before-quit', () => {
-    stopMacOSAudioCapture();
+app.on('before-quit', async () => {
     stopAzureSpeechRecognition();
+    
+    // Unregister all global shortcuts to prevent conflicts
+    globalShortcut.unregisterAll();
+    console.log('All global shortcuts unregistered');
+    
+    // Logout current session
+    try {
+        await storage.logoutCurrentSession();
+    } catch (error) {
+        console.error('Error logging out session:', error);
+    }
 });
 
 app.on('activate', () => {
@@ -181,13 +257,18 @@ function setupStorageIpcHandlers() {
 
     ipcMain.handle('storage:verify-pulse-credentials', async (event, userId, password) => {
         try {
-            // Try Firebase first if configured
-            if (isFirebaseConfigured()) {
-                const isValid = await verifyPulseCredentials(userId, password);
-                return { success: true, data: isValid };
+            // Use MongoDB for authentication
+            const isValid = await storage.verifyPulseCredentials(userId, password);
+            
+            // If login successful, start session monitoring
+            if (isValid && isValid.success) {
+                const session = storage.getCurrentSession();
+                if (session && session.sessionId) {
+                    console.log('🔍 Starting session monitoring for:', session.sessionId);
+                    sessionMonitor.startSessionMonitoring(session.sessionId, handleForceLogout);
+                }
             }
-            // Fallback to local storage if Firebase not configured
-            const isValid = storage.verifyPulseCredentials(userId, password);
+            
             return { success: true, data: isValid };
         } catch (error) {
             console.error('Error verifying pulse credentials:', error);
@@ -197,11 +278,7 @@ function setupStorageIpcHandlers() {
 
     ipcMain.handle('storage:has-pulse-credentials', async () => {
         try {
-            // If Firebase is configured, always return false (no local setup needed)
-            if (isFirebaseConfigured()) {
-                return { success: true, data: false };
-            }
-            // Otherwise check local storage
+            // Check if user is logged in
             const hasCredentials = storage.hasPulseCredentials();
             return { success: true, data: hasCredentials };
         } catch (error) {
@@ -210,12 +287,29 @@ function setupStorageIpcHandlers() {
         }
     });
 
-    // New handler to check if Firebase is configured
-    ipcMain.handle('storage:is-firebase-configured', async () => {
+    // New handler to get all users (for debugging/testing)
+    ipcMain.handle('storage:get-all-users', async () => {
         try {
-            return { success: true, data: isFirebaseConfigured() };
+            const users = await storage.getAllUsers();
+            return { success: true, data: users };
         } catch (error) {
-            console.error('Error checking Firebase configuration:', error);
+            console.error('Error getting all users:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    // Logout handler - stops session monitoring
+    ipcMain.handle('storage:logout', async () => {
+        try {
+            // Stop session monitoring first
+            console.log('🚫Stopping session monitoring...');
+            sessionMonitor.stopSessionMonitoring();
+            
+            // Then logout
+            await storage.logoutCurrentSession();
+            return { success: true };
+        } catch (error) {
+            console.error('Error logging out:', error);
             return { success: false, error: error.message };
         }
     });
@@ -342,13 +436,71 @@ function setupStorageIpcHandlers() {
 }
 
 function setupGeneralIpcHandlers() {
+    // Get speech credentials from backend
+    ipcMain.handle('get-speech-credentials', async () => {
+        try {
+            console.log('IPC: get-speech-credentials called');
+            
+            // Check if credentials are already loaded
+            let credentials = azureUtils.getSpeechCredentials();
+            
+            if (!credentials.key || !credentials.region) {
+                console.log('Credentials not loaded, fetching from backend...');
+                credentials = await azureUtils.fetchSpeechCredentials();
+                console.log('Credentials fetched:', {
+                    key: credentials.key ? 'Present' : 'Missing',
+                    region: credentials.region || 'Missing'
+                });
+            } else {
+                console.log('Using cached credentials');
+            }
+            
+            return credentials;
+        } catch (error) {
+            console.error('Failed to get speech credentials:', error);
+            throw error;
+        }
+    });
+
     ipcMain.handle('get-app-version', async () => {
         return app.getVersion();
     });
 
+    ipcMain.handle('update-undetectability-setting', async (event, enabled) => {
+        try {
+            console.log(`Updating undetectability setting: ${enabled}`);
+            // When enabled (true), window is undetectable (hidden from screen share)
+            // When disabled (false), window is visible in screen shares
+            if (mainWindow) {
+                // setContentProtection makes window invisible in screen captures when true
+                mainWindow.setContentProtection(enabled);
+                console.log(`✅ Content protection ${enabled ? 'enabled' : 'disabled'}`);
+            }
+            return { success: true };
+        } catch (error) {
+            console.error('Error updating undetectability:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    ipcMain.handle('reload-application', async () => {
+        try {
+            console.log('Application reload requested, logging out session...');
+            await storage.logoutCurrentSession();
+            console.log('✅ Session logged out, reloading...');
+            
+            if (mainWindow) {
+                mainWindow.reload();
+            }
+            return { success: true };
+        } catch (error) {
+            console.error('Error reloading application:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
     ipcMain.handle('quit-application', async event => {
         try {
-            stopMacOSAudioCapture();
             app.quit();
             return { success: true };
         } catch (error) {
@@ -371,7 +523,7 @@ function setupGeneralIpcHandlers() {
         if (mainWindow) {
             // Also save to storage
             storage.setKeybinds(newKeybinds);
-            updateGlobalShortcuts(newKeybinds, mainWindow, sendToRenderer, geminiSessionRef);
+            updateGlobalShortcuts(newKeybinds, mainWindow, sendToRenderer);
         }
     });
 

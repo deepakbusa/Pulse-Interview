@@ -12,6 +12,7 @@ export class CustomizeView extends LitElement {
         :host {
             display: block;
             height: 100%;
+            background: var(--bg-primary);
         }
 
         .settings-layout {
@@ -21,45 +22,56 @@ export class CustomizeView extends LitElement {
 
         /* Sidebar */
         .settings-sidebar {
-            width: 160px;
-            min-width: 160px;
+            width: 50px;
+            min-width: 50px;
+            background: var(--bg-secondary);
             border-right: 1px solid var(--border-color);
-            padding: 8px 0;
+            padding: 10px 0;
             display: flex;
             flex-direction: column;
-            gap: 2px;
+            gap: 4px;
+            align-items: center;
         }
 
         .sidebar-item {
             display: flex;
             align-items: center;
-            gap: 10px;
-            padding: 8px 12px;
-            margin: 0 8px;
-            border-radius: 3px;
-            font-size: 12px;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
             color: var(--text-secondary);
             cursor: pointer;
-            transition: all 0.1s ease;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
             border: none;
             background: transparent;
-            text-align: left;
-            width: calc(100% - 16px);
+            position: relative;
         }
 
         .sidebar-item:hover {
             background: var(--hover-background);
             color: var(--text-color);
+            transform: scale(1.05);
         }
 
         .sidebar-item.active {
-            background: var(--bg-tertiary);
-            color: var(--text-color);
+            background: rgba(59, 130, 246, 0.15);
+            color: #3b82f6;
+        }
+
+        .sidebar-item.active::before {
+            content: '';
+            position: absolute;
+            left: -10px;
+            width: 3px;
+            height: 20px;
+            background: #3b82f6;
+            border-radius: 0 2px 2px 0;
         }
 
         .sidebar-item svg {
-            width: 16px;
-            height: 16px;
+            width: 18px;
+            height: 18px;
             flex-shrink: 0;
         }
 
@@ -67,15 +79,20 @@ export class CustomizeView extends LitElement {
             color: var(--error-color);
         }
 
-        .sidebar-item.danger:hover,
+        .sidebar-item.danger:hover {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--error-color);
+        }
+
         .sidebar-item.danger.active {
+            background: rgba(239, 68, 68, 0.15);
             color: var(--error-color);
         }
 
         /* Main content */
         .settings-content {
             flex: 1;
-            padding: 16px 0;
+            padding: 0;
             overflow-y: auto;
             display: flex;
             flex-direction: column;
@@ -91,7 +108,7 @@ export class CustomizeView extends LitElement {
         }
 
         .settings-content::-webkit-scrollbar {
-            width: 8px;
+            width: 6px;
         }
 
         .settings-content::-webkit-scrollbar-track {
@@ -100,7 +117,7 @@ export class CustomizeView extends LitElement {
 
         .settings-content::-webkit-scrollbar-thumb {
             background: var(--scrollbar-thumb);
-            border-radius: 4px;
+            border-radius: 3px;
         }
 
         .settings-content::-webkit-scrollbar-thumb:hover {
@@ -108,37 +125,39 @@ export class CustomizeView extends LitElement {
         }
 
         .content-header {
-            font-size: 16px;
-            font-weight: 600;
+            font-size: 18px;
+            font-weight: 700;
             color: var(--text-color);
-            margin-bottom: 16px;
-            padding: 0 16px 12px 16px;
+            margin: 0 0 20px 0;
+            padding: 16px 20px;
+            background: var(--bg-secondary);
             border-bottom: 1px solid var(--border-color);
+            letter-spacing: -0.3px;
         }
 
         .settings-section {
-            padding: 12px 16px;
+            padding: 16px 20px;
         }
 
         .section-title {
-            font-size: 11px;
-            font-weight: 600;
+            font-size: 10px;
+            font-weight: 700;
             color: var(--text-muted);
             text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 12px;
+            letter-spacing: 1px;
+            margin-bottom: 16px;
         }
 
         .form-grid {
             display: grid;
-            gap: 12px;
-            padding: 0 16px;
+            gap: 16px;
+            padding: 0 20px 20px 20px;
         }
 
         .form-row {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 12px;
+            gap: 16px;
             align-items: start;
         }
 
@@ -151,7 +170,17 @@ export class CustomizeView extends LitElement {
         .form-group {
             display: flex;
             flex-direction: column;
-            gap: 6px;
+            gap: 8px;
+            background: var(--bg-secondary);
+            padding: 14px;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+            transition: all 0.2s ease;
+        }
+
+        .form-group:hover {
+            border-color: var(--border-hover);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         }
 
         .form-group.full-width {
@@ -159,54 +188,57 @@ export class CustomizeView extends LitElement {
         }
 
         .form-label {
-            font-weight: 500;
-            font-size: 12px;
+            font-weight: 600;
+            font-size: 11px;
             color: var(--text-color);
             display: flex;
             align-items: center;
-            gap: 6px;
+            justify-content: space-between;
+            letter-spacing: 0.3px;
         }
 
         .form-description {
-            font-size: 11px;
+            font-size: 10px;
             color: var(--text-muted);
-            line-height: 1.4;
-            margin-top: 2px;
+            line-height: 1.5;
+            margin-top: 4px;
         }
 
         .form-control {
             background: var(--input-background);
             color: var(--text-color);
-            border: 1px solid var(--border-color);
-            padding: 8px 10px;
-            border-radius: 3px;
+            border: 1.5px solid var(--border-color);
+            padding: 9px 11px;
+            border-radius: 8px;
             font-size: 12px;
-            transition: border-color 0.1s ease;
+            transition: all 0.2s ease;
+            font-weight: 500;
         }
 
         .form-control:focus {
             outline: none;
-            border-color: var(--border-default);
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
         }
 
         .form-control:hover:not(:focus) {
-            border-color: var(--border-default);
+            border-color: var(--border-hover);
         }
 
         select.form-control {
             cursor: pointer;
             appearance: none;
-            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b6b6b' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
-            background-position: right 8px center;
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%233b82f6' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+            background-position: right 10px center;
             background-repeat: no-repeat;
-            background-size: 12px;
-            padding-right: 28px;
+            background-size: 14px;
+            padding-right: 36px;
         }
 
         textarea.form-control {
             resize: vertical;
-            min-height: 60px;
-            line-height: 1.4;
+            min-height: 70px;
+            line-height: 1.6;
             font-family: inherit;
         }
 
@@ -242,11 +274,12 @@ export class CustomizeView extends LitElement {
             display: inline-flex;
             align-items: center;
             font-size: 10px;
-            color: var(--text-secondary);
-            background: var(--bg-tertiary);
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-weight: 500;
+            color: #3b82f6;
+            background: rgba(59, 130, 246, 0.1);
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-weight: 600;
+            letter-spacing: 0.3px;
         }
 
         .keybind-input {
@@ -254,7 +287,7 @@ export class CustomizeView extends LitElement {
             font-family: 'SF Mono', Monaco, monospace;
             text-align: center;
             letter-spacing: 0.5px;
-            font-weight: 500;
+            font-weight: 600;
         }
 
         .keybind-input:focus {
@@ -267,37 +300,40 @@ export class CustomizeView extends LitElement {
         }
 
         .reset-keybinds-button {
-            background: transparent;
+            background: var(--bg-secondary);
             color: var(--text-color);
-            border: 1px solid var(--border-color);
-            padding: 6px 10px;
-            border-radius: 3px;
+            border: 1.5px solid var(--border-color);
+            padding: 8px 14px;
+            border-radius: 8px;
             font-size: 11px;
-            font-weight: 500;
+            font-weight: 600;
             cursor: pointer;
-            transition: background 0.1s ease;
+            transition: all 0.2s ease;
         }
 
         .reset-keybinds-button:hover {
             background: var(--hover-background);
+            border-color: #3b82f6;
+            color: #3b82f6;
+            transform: translateY(-1px);
         }
 
         .keybinds-table {
             width: 100%;
-            border-collapse: collapse;
+            border-collapse: separate;
+            border-spacing: 0 8px;
             margin-top: 8px;
         }
 
         .keybinds-table th,
         .keybinds-table td {
-            padding: 8px 0;
+            padding: 12px 14px;
             text-align: left;
-            border-bottom: 1px solid var(--border-color);
         }
 
         .keybinds-table th {
-            font-weight: 600;
-            font-size: 11px;
+            font-weight: 700;
+            font-size: 10px;
             color: var(--text-muted);
             text-transform: uppercase;
             letter-spacing: 0.5px;
@@ -305,10 +341,24 @@ export class CustomizeView extends LitElement {
 
         .keybinds-table td {
             vertical-align: middle;
+            background: var(--bg-secondary);
+        }
+
+        .keybinds-table tbody tr {
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .keybinds-table tbody tr td:first-child {
+            border-radius: 8px 0 0 8px;
+        }
+
+        .keybinds-table tbody tr td:last-child {
+            border-radius: 0 8px 8px 0;
         }
 
         .keybinds-table .action-name {
-            font-weight: 500;
+            font-weight: 600;
             color: var(--text-color);
             font-size: 12px;
         }
@@ -316,22 +366,18 @@ export class CustomizeView extends LitElement {
         .keybinds-table .action-description {
             font-size: 10px;
             color: var(--text-muted);
-            margin-top: 1px;
+            margin-top: 2px;
         }
 
         .keybinds-table .keybind-input {
             min-width: 100px;
-            padding: 4px 8px;
+            padding: 6px 10px;
             margin: 0;
             font-size: 11px;
         }
 
-        .keybinds-table tr:hover {
+        .keybinds-table tr:hover td {
             background: var(--hover-background);
-        }
-
-        .keybinds-table tr:last-child td {
-            border-bottom: none;
         }
 
         .table-reset-row {
@@ -360,19 +406,19 @@ export class CustomizeView extends LitElement {
         .checkbox-group {
             display: flex;
             align-items: center;
-            gap: 8px;
-            padding: 8px 0;
+            gap: 10px;
+            padding: 10px 0;
         }
 
         .checkbox-input {
-            width: 14px;
-            height: 14px;
-            accent-color: var(--text-color);
+            width: 18px;
+            height: 18px;
+            accent-color: #3b82f6;
             cursor: pointer;
         }
 
         .checkbox-label {
-            font-weight: 500;
+            font-weight: 600;
             font-size: 12px;
             color: var(--text-color);
             cursor: pointer;
@@ -383,7 +429,7 @@ export class CustomizeView extends LitElement {
         .slider-container {
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: 10px;
         }
 
         .slider-header {
@@ -394,11 +440,11 @@ export class CustomizeView extends LitElement {
 
         .slider-value {
             font-size: 11px;
-            color: var(--text-secondary);
-            background: var(--bg-tertiary);
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-weight: 500;
+            color: #3b82f6;
+            background: rgba(59, 130, 246, 0.1);
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-weight: 700;
             font-family: 'SF Mono', Monaco, monospace;
         }
 
@@ -406,8 +452,8 @@ export class CustomizeView extends LitElement {
             -webkit-appearance: none;
             appearance: none;
             width: 100%;
-            height: 4px;
-            border-radius: 2px;
+            height: 6px;
+            border-radius: 3px;
             background: var(--border-color);
             outline: none;
             cursor: pointer;
@@ -416,29 +462,34 @@ export class CustomizeView extends LitElement {
         .slider-input::-webkit-slider-thumb {
             -webkit-appearance: none;
             appearance: none;
-            width: 14px;
-            height: 14px;
+            width: 18px;
+            height: 18px;
             border-radius: 50%;
-            background: var(--text-color);
+            background: #3b82f6;
             cursor: pointer;
-            border: none;
+            border: 3px solid var(--bg-primary);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
         }
 
         .slider-input::-moz-range-thumb {
-            width: 14px;
-            height: 14px;
+            width: 18px;
+            height: 18px;
             border-radius: 50%;
-            background: var(--text-color);
+            background: #3b82f6;
             cursor: pointer;
-            border: none;
+            border: 3px solid var(--bg-primary);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
         }
 
         .slider-labels {
             display: flex;
             justify-content: space-between;
-            margin-top: 4px;
-            font-size: 10px;
+            margin-top: 2px;
+            font-size: 9px;
             color: var(--text-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
         /* Color picker styles */
@@ -494,44 +545,47 @@ export class CustomizeView extends LitElement {
 
         /* Danger button and status */
         .danger-button {
-            background: transparent;
-            color: var(--error-color);
-            border: 1px solid var(--error-color);
-            padding: 8px 14px;
-            border-radius: 3px;
+            background: var(--error-color);
+            color: #fff;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 8px;
             font-size: 11px;
-            font-weight: 500;
+            font-weight: 700;
             cursor: pointer;
-            transition: background 0.1s ease;
+            transition: all 0.2s ease;
         }
 
         .danger-button:hover {
-            background: rgba(241, 76, 76, 0.1);
+            background: #dc2626;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
         }
 
         .danger-button:disabled {
             opacity: 0.5;
             cursor: not-allowed;
+            transform: none;
         }
 
         .status-message {
-            margin-top: 12px;
-            padding: 8px 12px;
-            border-radius: 3px;
+            margin-top: 14px;
+            padding: 10px 14px;
+            border-radius: 8px;
             font-size: 11px;
-            font-weight: 500;
+            font-weight: 600;
         }
 
         .status-success {
-            background: var(--bg-secondary);
-            color: var(--success-color);
-            border-left: 2px solid var(--success-color);
+            background: rgba(34, 197, 94, 0.1);
+            color: #22c55e;
+            border: 1.5px solid rgba(34, 197, 94, 0.3);
         }
 
         .status-error {
-            background: var(--bg-secondary);
+            background: rgba(239, 68, 68, 0.1);
             color: var(--error-color);
-            border-left: 2px solid var(--error-color);
+            border: 1.5px solid rgba(239, 68, 68, 0.3);
         }
     `;
 
@@ -553,6 +607,9 @@ export class CustomizeView extends LitElement {
         isClearing: { type: Boolean },
         clearStatusMessage: { type: String },
         clearStatusType: { type: String },
+        isSavingResume: { type: Boolean },
+        resumeSaveMessage: { type: String },
+        undetectabilityEnabled: { type: Boolean },
     };
 
     constructor() {
@@ -575,6 +632,10 @@ export class CustomizeView extends LitElement {
         this.clearStatusMessage = '';
         this.clearStatusType = '';
 
+        // Resume save state
+        this.isSavingResume = false;
+        this.resumeSaveMessage = '';
+
         // Background transparency default
         this.backgroundTransparency = 0.8;
 
@@ -586,6 +647,9 @@ export class CustomizeView extends LitElement {
 
         // Custom prompt
         this.customPrompt = '';
+
+        // Undetectability default (ON by default)
+        this.undetectabilityEnabled = true;
 
         // Active section for sidebar navigation
         this.activeSection = 'profile';
@@ -609,12 +673,12 @@ export class CustomizeView extends LitElement {
         return [
             { id: 'profile', name: 'Profile', icon: 'user' },
             { id: 'appearance', name: 'Appearance', icon: 'display' },
+            { id: 'visibility', name: 'Visibility', icon: 'eye' },
             { id: 'audio', name: 'Audio', icon: 'mic' },
             { id: 'language', name: 'Language', icon: 'globe' },
             { id: 'capture', name: 'Capture', icon: 'camera' },
             { id: 'keyboard', name: 'Keyboard', icon: 'keyboard' },
             { id: 'search', name: 'Search', icon: 'search' },
-            { id: 'advanced', name: 'Advanced', icon: 'warning', danger: true },
         ];
     }
 
@@ -659,6 +723,10 @@ export class CustomizeView extends LitElement {
                 <circle cx="11" cy="11" r="8"></circle>
                 <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
             </svg>`,
+            eye: html`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+            </svg>`,
             warning: html`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
                 <line x1="12" y1="9" x2="12" y2="13"></line>
@@ -681,6 +749,7 @@ export class CustomizeView extends LitElement {
             this.audioMode = prefs.audioMode ?? 'speaker_only';
             this.customPrompt = prefs.customPrompt ?? '';
             this.theme = prefs.theme ?? 'dark';
+            this.undetectabilityEnabled = prefs.undetectabilityEnabled ?? true;
 
             if (keybinds) {
                 this.keybinds = { ...this.getDefaultKeybinds(), ...keybinds };
@@ -803,7 +872,29 @@ export class CustomizeView extends LitElement {
 
     async handleCustomPromptInput(e) {
         this.customPrompt = e.target.value;
-        await cheatingDaddy.storage.updatePreference('customPrompt', e.target.value);
+        // Clear save message when typing
+        this.resumeSaveMessage = '';
+    }
+
+    async handleSaveResumeContent() {
+        this.isSavingResume = true;
+        this.resumeSaveMessage = '';
+        try {
+            // Save as resumeContent now
+            await cheatingDaddy.storage.updatePreference('resumeContent', this.customPrompt);
+            await cheatingDaddy.storage.updatePreference('customPrompt', this.customPrompt);
+            this.resumeSaveMessage = '✓ Resume content saved successfully!';
+            setTimeout(() => {
+                this.resumeSaveMessage = '';
+                this.requestUpdate();
+            }, 3000);
+        } catch (error) {
+            console.error('Error saving resume:', error);
+            this.resumeSaveMessage = '✗ Failed to save';
+        } finally {
+            this.isSavingResume = false;
+            this.requestUpdate();
+        }
     }
 
     async handleAudioModeSelect(e) {
@@ -828,13 +919,14 @@ export class CustomizeView extends LitElement {
             moveRight: isMac ? 'Alt+Right' : 'Ctrl+Right',
             toggleVisibility: isMac ? 'Cmd+\\' : 'Ctrl+\\',
             toggleClickThrough: isMac ? 'Cmd+M' : 'Ctrl+M',
-            nextStep: isMac ? 'Cmd+Enter' : 'Ctrl+Enter',
+            nextStep: isMac ? 'Cmd+/' : 'Ctrl+/',
             previousResponse: isMac ? 'Cmd+[' : 'Ctrl+[',
             nextResponse: isMac ? 'Cmd+]' : 'Ctrl+]',
             scrollUp: isMac ? 'Cmd+Shift+Up' : 'Ctrl+Shift+Up',
             scrollDown: isMac ? 'Cmd+Shift+Down' : 'Ctrl+Shift+Down',
             sendTranscription: isMac ? 'Cmd+D' : 'Ctrl+D',
-            analyzeScreen: isMac ? 'Cmd+A' : 'Ctrl+A',
+            analyzeScreen: isMac ? 'Cmd+/' : 'Ctrl+/',
+            focusTextInput: isMac ? 'Cmd+Shift+T' : 'Ctrl+Shift+T',
             emergencyErase: isMac ? 'Cmd+Shift+E' : 'Ctrl+Shift+E',
         };
     }
@@ -930,6 +1022,11 @@ export class CustomizeView extends LitElement {
                 key: 'analyzeScreen',
                 name: 'Analyze Screen',
                 description: 'Capture and analyze the current screen with Azure Vision',
+            },
+            {
+                key: 'focusTextInput',
+                name: 'Focus Text Input',
+                description: 'Focus the text input box to type messages',
             },
             {
                 key: 'emergencyErase',
@@ -1031,6 +1128,23 @@ export class CustomizeView extends LitElement {
         this.requestUpdate();
     }
 
+    async handleUndetectabilityChange(e) {
+        this.undetectabilityEnabled = e.target.checked;
+        await cheatingDaddy.storage.updatePreference('undetectabilityEnabled', this.undetectabilityEnabled);
+
+        // Notify main process to update window visibility settings
+        if (window.require) {
+            try {
+                const { ipcRenderer } = window.require('electron');
+                await ipcRenderer.invoke('update-undetectability-setting', this.undetectabilityEnabled);
+            } catch (error) {
+                console.error('Failed to update undetectability:', error);
+            }
+        }
+
+        this.requestUpdate();
+    }
+
     async clearLocalData() {
         if (this.isClearing) return;
 
@@ -1123,17 +1237,32 @@ export class CustomizeView extends LitElement {
                     </div>
 
                     <div class="form-group expand">
-                        <label class="form-label">Custom AI Instructions</label>
+                        <label class="form-label">Resume Content</label>
                         <textarea
                             class="form-control"
-                            placeholder="Add specific instructions for how you want the AI to behave during ${
-                                profileNames[this.selectedProfile] || 'this interaction'
+                            placeholder="Paste your resume content here. Include your skills, experience, education, and achievements. The AI will use this to provide personalized responses during ${
+                                profileNames[this.selectedProfile] || 'your session'
                             }..."
                             .value=${this.customPrompt}
                             @input=${this.handleCustomPromptInput}
+                            style="min-height: 200px;"
                         ></textarea>
+                        <div style="display: flex; gap: 12px; align-items: center; margin-top: 8px;">
+                            <button 
+                                class="reset-keybinds-button" 
+                                @click=${this.handleSaveResumeContent}
+                                ?disabled=${this.isSavingResume}
+                            >
+                                ${this.isSavingResume ? 'Saving...' : 'Save Resume Content'}
+                            </button>
+                            ${this.resumeSaveMessage ? html`
+                                <span style="font-size: 11px; color: var(--success-color);">
+                                    ${this.resumeSaveMessage}
+                                </span>
+                            ` : ''}
+                        </div>
                         <div class="form-description">
-                            Personalize the AI's behavior with specific instructions
+                            Paste your resume content here. When you enable "Sync with my resume" during the interview, the AI will reference this information to provide personalized responses.
                         </div>
                     </div>
                 </div>
@@ -1371,6 +1500,30 @@ export class CustomizeView extends LitElement {
         `;
     }
 
+    renderVisibilitySection() {
+        return html`
+            <div class="content-header">Visibility Settings</div>
+            <div class="form-grid">
+                <div class="form-group">
+                    <div class="checkbox-group">
+                        <input
+                            type="checkbox"
+                            class="checkbox-input"
+                            id="undetectability-enabled"
+                            .checked=${this.undetectabilityEnabled}
+                            @change=${this.handleUndetectabilityChange}
+                        />
+                        <label for="undetectability-enabled" class="checkbox-label">Enable Undetectability</label>
+                    </div>
+                    <div class="form-description" style="margin-left: 24px; margin-top: 4px;">
+                        When enabled, the app will be hidden from screen sharing and recording software.
+                        <br /><strong>Turn OFF</strong> to make the app visible in screen shares.
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
     renderAdvancedSection() {
         return html`
             <div class="content-header" style="color: var(--error-color);">Advanced</div>
@@ -1403,6 +1556,8 @@ export class CustomizeView extends LitElement {
                 return this.renderProfileSection();
             case 'appearance':
                 return this.renderAppearanceSection();
+            case 'visibility':
+                return this.renderVisibilitySection();
             case 'audio':
                 return this.renderAudioSection();
             case 'language':
@@ -1431,9 +1586,9 @@ export class CustomizeView extends LitElement {
                             <button
                                 class="sidebar-item ${this.activeSection === section.id ? 'active' : ''} ${section.danger ? 'danger' : ''}"
                                 @click=${() => this.setActiveSection(section.id)}
+                                title="${section.name}"
                             >
                                 ${this.renderSidebarIcon(section.icon)}
-                                <span>${section.name}</span>
                             </button>
                         `
                     )}

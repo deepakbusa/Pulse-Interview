@@ -13,6 +13,38 @@ export class AssistantView extends LitElement {
             cursor: default;
         }
 
+        .connection-alert {
+            background: rgba(255, 59, 48, 0.1);
+            border-bottom: 1px solid rgba(255, 59, 48, 0.3);
+            padding: 4px 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            font-size: 10px;
+            color: #ff3b30;
+            font-weight: 500;
+            animation: slideDown 0.2s ease;
+        }
+
+        .connection-alert::before {
+            content: '';
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: #ff3b30;
+            animation: blink 1.5s infinite;
+        }
+
+        @keyframes slideDown {
+            from { transform: translateY(-100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .connection-alert.hidden {
+            display: none;
+        }
+
         .transcription-display {
             background: var(--bg-secondary);
             border-bottom: 1px solid var(--border-color);
@@ -68,8 +100,14 @@ export class AssistantView extends LitElement {
             font-style: italic;
         }
 
-        .response-container {
+        .response-wrapper {
+            position: relative;
             height: calc(100% - 50px);
+            overflow: hidden;
+        }
+
+        .response-container {
+            height: 100%;
             overflow-y: auto;
             font-size: var(--response-font-size, 16px);
             line-height: 1.6;
@@ -281,11 +319,11 @@ export class AssistantView extends LitElement {
             background: var(--btn-primary-bg, #ffffff);
             color: var(--btn-primary-text, #000000);
             border: none;
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-size: 12px;
+            padding: 5px 10px;
+            border-radius: 6px;
+            font-size: 11px;
             font-weight: 500;
-            cursor: pointer;
+            cursor: default;
             transition: all 0.15s ease;
             white-space: nowrap;
         }
@@ -295,38 +333,53 @@ export class AssistantView extends LitElement {
         }
 
         .screen-answer-btn svg {
-            width: 16px;
-            height: 16px;
+            width: 14px;
+            height: 14px;
             flex-shrink: 0;
         }
 
-        .screen-answer-btn .usage-count {
-            font-size: 11px;
-            opacity: 0.7;
+        .screen-answer-btn .shortcut-text {
+            font-size: 10px;
+            opacity: 0.6;
             font-family: 'SF Mono', Monaco, monospace;
+            margin-left: 4px;
         }
 
         .screen-answer-btn-wrapper {
             position: relative;
         }
 
+        .button-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
         .screen-answer-btn-wrapper .tooltip {
-            position: absolute;
-            bottom: 100%;
-            right: 0;
-            margin-bottom: 8px;
-            background: var(--tooltip-bg, #1a1a1a);
-            color: var(--tooltip-text, #ffffff);
-            padding: 8px 12px;
-            border-radius: 6px;
-            font-size: 11px;
-            white-space: nowrap;
-            opacity: 0;
-            visibility: hidden;
-            transition: opacity 0.15s ease, visibility 0.15s ease;
+            display: none;
+        }
+
+        .screen-answer-btn.analyzing {
+            opacity: 0.7;
             pointer-events: none;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            z-index: 100;
+        }
+
+        .screen-answer-btn .spinner {
+            display: none;
+            width: 14px;
+            height: 14px;
+            border: 2px solid var(--btn-primary-text, #000000);
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+
+        .screen-answer-btn.analyzing .spinner {
+            display: block;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
         }
 
         .screen-answer-btn-wrapper .tooltip::after {
@@ -369,6 +422,165 @@ export class AssistantView extends LitElement {
             opacity: 0.5;
             font-size: 10px;
         }
+
+        .resume-sync-container {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 8px;
+            background: var(--bg-secondary);
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+
+        .resume-sync-container:hover {
+            background: var(--bg-tertiary);
+            border-color: var(--border-hover);
+        }
+
+        .resume-sync-checkbox {
+            width: 14px;
+            height: 14px;
+            accent-color: var(--btn-primary-bg, #ffffff);
+            cursor: default;
+            margin: 0;
+            flex-shrink: 0;
+        }
+
+        .resume-sync-label {
+            font-size: 10px;
+            color: var(--text-color);
+            cursor: default;
+            user-select: none;
+            font-weight: 500;
+        }
+
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: var(--bg-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+
+        .loading-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .loading-spinner {
+            width: 60px;
+            height: 60px;
+            position: relative;
+        }
+
+        .loading-spinner::before,
+        .loading-spinner::after {
+            content: '';
+            position: absolute;
+            border-radius: 50%;
+        }
+
+        .loading-spinner::before {
+            width: 100%;
+            height: 100%;
+            border: 3px solid transparent;
+            border-top-color: var(--btn-primary-bg, #ffffff);
+            animation: spin 1s linear infinite;
+        }
+
+        .loading-spinner::after {
+            width: 80%;
+            height: 80%;
+            top: 10%;
+            left: 10%;
+            border: 3px solid transparent;
+            border-top-color: var(--text-color);
+            opacity: 0.5;
+            animation: spin 0.7s linear infinite reverse;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .loading-text {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-color);
+            animation: pulse 1.5s ease-in-out infinite;
+            letter-spacing: 0.5px;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        .loading-dots {
+            display: inline-flex;
+            gap: 4px;
+            margin-left: 4px;
+        }
+
+        .loading-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--btn-primary-bg, #ffffff);
+            animation: bounce 1.4s ease-in-out infinite;
+        }
+
+        .loading-dot:nth-child(1) {
+            animation-delay: 0s;
+        }
+
+        .loading-dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .loading-dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes bounce {
+            0%, 80%, 100% {
+                transform: scale(0.8);
+                opacity: 0.5;
+            }
+            40% {
+                transform: scale(1.2);
+                opacity: 1;
+            }
+        }
     `;
 
     static properties = {
@@ -382,6 +594,11 @@ export class AssistantView extends LitElement {
         transcriptionText: { type: String },
         interimText: { type: String },
         isListening: { type: Boolean },
+        isOffline: { type: Boolean },
+        syncWithResume: { type: Boolean },
+        hasResumeContent: { type: Boolean },
+        isLoading: { type: Boolean },
+        isAnalyzing: { type: Boolean },
     };
 
     constructor() {
@@ -395,6 +612,82 @@ export class AssistantView extends LitElement {
         this.transcriptionText = '';
         this.interimText = '';
         this.isListening = false;
+        this.isOffline = false;
+        this.syncWithResume = false;
+        this.hasResumeContent = false;
+        this.isLoading = false;
+        this.isAnalyzing = false;
+        this._checkResumeContent();
+        this._setupConnectionMonitor();
+    }
+
+    async _checkResumeContent() {
+        try {
+            const prefs = await window.pulse.storage.getPreferences();
+            this.hasResumeContent = !!(prefs.resumeContent && prefs.resumeContent.trim());
+            // Always start with sync OFF when entering live interview
+            this.syncWithResume = false;
+        } catch (error) {
+            console.error('Error checking resume content:', error);
+        }
+    }
+
+    _setupConnectionMonitor() {
+        window.addEventListener('online', () => {
+            this.isOffline = false;
+            console.log('Connection restored');
+        });
+        window.addEventListener('offline', () => {
+            this.isOffline = true;
+            console.log('Connection lost');
+        });
+        this.isOffline = !navigator.onLine;
+    }
+
+    async handleResumeSyncChange(e) {
+        const checked = e.target.checked;
+        
+        // If trying to enable sync, check if resume content exists
+        if (checked) {
+            const prefs = await window.pulse.storage.getPreferences();
+            const resumeContent = prefs.resumeContent || '';
+            
+            if (!resumeContent.trim()) {
+                // Show alert and uncheck
+                alert('Please save your resume content in Settings.');
+                e.target.checked = false;
+                this.syncWithResume = false;
+                return;
+            }
+            
+            // Resume content exists, proceed with sync
+            this.syncWithResume = true;
+            await window.pulse.storage.updatePreference('syncWithResume', true);
+            
+            const message = `Please remember the following information about me for this conversation. Use this context to provide personalized responses when relevant:\n\n${resumeContent}\n\nAcknowledge that you've saved this information.`;
+            await this.onSendText(message);
+        } else {
+            // Disabling sync - restart session to clear conversation history
+            this.syncWithResume = false;
+            try {
+                await window.pulse.storage.updatePreference('syncWithResume', false);
+                
+                // Restart Azure session to clear conversation history
+                console.log('Restarting session to clear resume context...');
+                await window.pulse.stopAzureSession();
+                await window.pulse.startAzureSession(this.selectedProfile || 'interview', 'en-US');
+                
+                // Clear current responses to show fresh start
+                this.dispatchEvent(new CustomEvent('clear-responses', { 
+                    bubbles: true, 
+                    composed: true 
+                }));
+                
+                console.log('Session restarted - resume context cleared');
+            } catch (error) {
+                console.error('Error restarting session:', error);
+            }
+        }
     }
 
     getProfileNames() {
@@ -555,6 +848,20 @@ export class AssistantView extends LitElement {
                 }
             };
 
+            this.handleFocusTextInput = () => {
+                console.log('Focus text input shortcut triggered');
+                const textInput = this.shadowRoot.querySelector('#textInput');
+                if (textInput) {
+                    textInput.focus();
+                    console.log('Text input focused');
+                }
+            };
+
+            this.handleAnalyzeScreen = () => {
+                console.log('Analyze screen shortcut triggered');
+                this.handleScreenAnswer();
+            };
+
             // Azure Speech Recognition handlers
             this.handleSpeechRecognizing = (event, data) => {
                 console.log('Speech recognizing (interim):', data.text);
@@ -581,12 +888,20 @@ export class AssistantView extends LitElement {
                 
                 this.requestUpdate();
                 
+                // Auto-scroll transcription display to bottom
+                setTimeout(() => {
+                    const transcriptionDisplay = this.shadowRoot.querySelector('.transcription-display');
+                    if (transcriptionDisplay) {
+                        transcriptionDisplay.scrollTop = transcriptionDisplay.scrollHeight;
+                    }
+                }, 50);
+                
                 // NO AUTO-SEND - Only send when user presses Ctrl+D
                 console.log('✋ Transcription accumulated. Press Ctrl+D to send.');
             };
 
             this.handleSpeechSessionStarted = () => {
-                console.log('Azure Speech session started');
+                console.log('Speech session started');
                 this.isListening = true;
                 this.transcriptionText = '';
                 this.interimText = '';
@@ -594,7 +909,7 @@ export class AssistantView extends LitElement {
             };
 
             this.handleSpeechSessionStopped = () => {
-                console.log('Azure Speech session stopped');
+                console.log('Speech session stopped');
                 this.isListening = false;
                 this.transcriptionText = '';
                 this.interimText = '';
@@ -606,6 +921,8 @@ export class AssistantView extends LitElement {
             ipcRenderer.on('scroll-response-up', this.handleScrollUp);
             ipcRenderer.on('scroll-response-down', this.handleScrollDown);
             ipcRenderer.on('send-transcription', this.handleSendTranscription);
+            ipcRenderer.on('focus-text-input', this.handleFocusTextInput);
+            ipcRenderer.on('analyze-screen', this.handleAnalyzeScreen);
 
             // Azure Speech IPC listeners
             ipcRenderer.on('azure:speech-recognizing', this.handleSpeechRecognizing);
@@ -617,6 +934,11 @@ export class AssistantView extends LitElement {
 
     disconnectedCallback() {
         super.disconnectedCallback();
+
+        // Stop Azure speech recognition when leaving assistant view
+        if (window.cheatingDaddy?.stopWebSpeech) {
+            window.cheatingDaddy.stopWebSpeech();
+        }
 
         // Clean up IPC listeners
         if (window.require) {
@@ -658,12 +980,8 @@ export class AssistantView extends LitElement {
         if (textInput && textInput.value.trim()) {
             const message = textInput.value.trim();
             textInput.value = ''; // Clear input
-            this.isLoading = true;
-            try {
-                await this.onSendText(message);
-            } finally {
-                this.isLoading = false;
-            }
+            // isLoading is now controlled by parent component for instant dismissal
+            await this.onSendText(message);
         }
     }
 
@@ -692,14 +1010,16 @@ export class AssistantView extends LitElement {
 
     async handleScreenAnswer() {
         if (window.captureManualScreenshot) {
-            this.isLoading = true;
+            this.isAnalyzing = true;
             try {
                 await window.captureManualScreenshot();
                 // Reload limits after a short delay to catch the update
                 setTimeout(() => this.loadLimits(), 1000);
-            } finally {
-                this.isLoading = false;
+            } catch (error) {
+                console.error('Error analyzing screenshot:', error);
+                this.isAnalyzing = false;
             }
+            // Note: isAnalyzing will be cleared when response arrives
         }
     }
 
@@ -721,6 +1041,10 @@ export class AssistantView extends LitElement {
         super.updated(changedProperties);
         if (changedProperties.has('responses') || changedProperties.has('currentResponseIndex')) {
             this.updateResponseContent();
+            // Clear analyzing state when new response arrives
+            if (changedProperties.has('responses') && this.responses.length > 0 && this.isAnalyzing) {
+                this.isAnalyzing = false;
+            }
         }
     }
 
@@ -746,6 +1070,10 @@ export class AssistantView extends LitElement {
         const responseCounter = this.getResponseCounter();
 
         return html`
+            ${this.isOffline ? html`
+                <div class="connection-alert">Internet disconnected</div>
+            ` : ''}
+
             ${(this.isListening || this.transcriptionText || this.interimText) ? html`
                 <div class="transcription-display ${this.isListening ? 'listening' : ''}">
                     <div class="transcription-label">
@@ -753,7 +1081,7 @@ export class AssistantView extends LitElement {
                             <path d="M7 4a3 3 0 016 0v6a3 3 0 11-6 0V4z"></path>
                             <path d="M5.5 9.643a.75.75 0 00-1.5 0V10c0 3.06 2.29 5.585 5.25 5.954V17.5h-1.5a.75.75 0 000 1.5h4.5a.75.75 0 000-1.5h-1.5v-1.546A6.001 6.001 0 0016 10v-.357a.75.75 0 00-1.5 0V10a4.5 4.5 0 01-9 0v-.357z"></path>
                         </svg>
-                        🎤 Listening... (Press Ctrl+D to send)
+                        Listening... (Press Ctrl+D to send)
                     </div>
                     <div class="transcription-text">
                         ${this.transcriptionText}${this.interimText ? html`<span style="opacity: 0.6">${this.interimText}</span>` : ''}${!this.transcriptionText && !this.interimText ? 'Speak now...' : ''}
@@ -761,7 +1089,24 @@ export class AssistantView extends LitElement {
                 </div>
             ` : ''}
 
-            <div class="response-container" id="responseContainer"></div>
+            <div class="response-wrapper">
+                ${this.isLoading ? html`
+                    <div class="loading-overlay">
+                        <div class="loading-container">
+                            <div class="loading-spinner"></div>
+                            <div class="loading-text">
+                                AI Thinking
+                                <span class="loading-dots">
+                                    <span class="loading-dot"></span>
+                                    <span class="loading-dot"></span>
+                                    <span class="loading-dot"></span>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                ` : ''}
+                <div class="response-container" id="responseContainer"></div>
+            </div>
 
             <div class="text-input-container">
                 <button class="nav-button" @click=${this.navigateToPreviousResponse} ?disabled=${this.currentResponseIndex <= 0}>
@@ -780,33 +1125,45 @@ export class AssistantView extends LitElement {
 
                 <input type="text" id="textInput" placeholder="Type a message to the AI..." @keydown=${this.handleTextKeydown} />
 
-                <div class="screen-answer-btn-wrapper">
-                    <div class="tooltip">
-                        <div class="tooltip-row">
-                            <span class="tooltip-label">Flash</span>
-                            <span class="tooltip-value">${this.flashCount}/20</span>
+                <div class="button-row">
+                    ${this.hasResumeContent ? html`
+                        <div class="resume-sync-container">
+                            <input 
+                                type="checkbox" 
+                                id="resumeSync" 
+                                class="resume-sync-checkbox"
+                                .checked=${this.syncWithResume}
+                                @change=${this.handleResumeSyncChange}
+                            />
+                            <label for="resumeSync" class="resume-sync-label" @click=${(e) => { e.preventDefault(); this.shadowRoot.querySelector('#resumeSync').click(); }}>
+                                Sync my Resume
+                            </label>
                         </div>
-                        <div class="tooltip-row">
-                            <span class="tooltip-label">Flash Lite</span>
-                            <span class="tooltip-value">${this.flashLiteCount}/20</span>
+                    ` : ''}
+
+                    <div class="screen-answer-btn-wrapper">
+                        <div class="tooltip">
+                            <div class="tooltip-row">
+                                <span class="tooltip-label">Flash</span>
+                                <span class="tooltip-value">${this.flashCount}/20</span>
+                            </div>
+                            <div class="tooltip-row">
+                                <span class="tooltip-label">Flash Lite</span>
+                                <span class="tooltip-value">${this.flashLiteCount}/20</span>
+                            </div>
+                            <div class="tooltip-note">Resets every 24 hours</div>
                         </div>
-                        <div class="tooltip-note">Resets every 24 hours</div>
+                        <button class="screen-answer-btn ${this.isAnalyzing ? 'analyzing' : ''}" @click=${this.handleScreenAnswer}>
+                            <div class="spinner"></div>
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" style="${this.isAnalyzing ? 'display: none;' : ''}">
+                                <path d="M15.98 1.804a1 1 0 0 0-1.96 0l-.24 1.192a1 1 0 0 1-.784.785l-1.192.238a1 1 0 0 0 0 1.962l1.192.238a1 1 0 0 1 .785.785l.238 1.192a1 1 0 0 0 1.962 0l.238-1.192a1 1 0 0 1 .785-.785l1.192-.238a1 1 0 0 0 0-1.962l-1.192-.238a1 1 0 0 1-.785-.785l-.238-1.192ZM6.949 5.684a1 1 0 0 0-1.898 0l-.683 2.051a1 1 0 0 1-.633.633l-2.051.683a1 1 0 0 0 0 1.898l2.051.684a1 1 0 0 1 .633.632l.683 2.051a1 1 0 0 0 1.898 0l.683-2.051a1 1 0 0 1 .633-.633l2.051-.683a1 1 0 0 0 0-1.898l-2.051-.683a1 1 0 0 1-.633-.633L6.95 5.684ZM13.949 13.684a1 1 0 0 0-1.898 0l-.184.551a1 1 0 0 1-.632.633l-.551.183a1 1 0 0 0 0 1.898l.551.183a1 1 0 0 1 .633.633l.183.551a1 1 0 0 0 1.898 0l.184-.551a1 1 0 0 1 .632-.633l.551-.183a1 1 0 0 0 0-1.898l-.551-.184a1 1 0 0 1-.633-.632l-.183-.551Z" />
+                            </svg>
+                            <span>${this.isAnalyzing ? 'Analyzing...' : 'Analyze'}</span>
+                            <span class="shortcut-text">(Ctrl+/)</span>
+                        </button>
                     </div>
-                    <button class="screen-answer-btn" @click=${this.handleScreenAnswer}>
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                            <path d="M15.98 1.804a1 1 0 0 0-1.96 0l-.24 1.192a1 1 0 0 1-.784.785l-1.192.238a1 1 0 0 0 0 1.962l1.192.238a1 1 0 0 1 .785.785l.238 1.192a1 1 0 0 0 1.962 0l.238-1.192a1 1 0 0 1 .785-.785l1.192-.238a1 1 0 0 0 0-1.962l-1.192-.238a1 1 0 0 1-.785-.785l-.238-1.192ZM6.949 5.684a1 1 0 0 0-1.898 0l-.683 2.051a1 1 0 0 1-.633.633l-2.051.683a1 1 0 0 0 0 1.898l2.051.684a1 1 0 0 1 .633.632l.683 2.051a1 1 0 0 0 1.898 0l.683-2.051a1 1 0 0 1 .633-.633l2.051-.683a1 1 0 0 0 0-1.898l-2.051-.683a1 1 0 0 1-.633-.633L6.95 5.684ZM13.949 13.684a1 1 0 0 0-1.898 0l-.184.551a1 1 0 0 1-.632.633l-.551.183a1 1 0 0 0 0 1.898l.551.183a1 1 0 0 1 .633.633l.183.551a1 1 0 0 0 1.898 0l.184-.551a1 1 0 0 1 .632-.633l.551-.183a1 1 0 0 0 0-1.898l-.551-.184a1 1 0 0 1-.633-.632l-.183-.551Z" />
-                        </svg>
-                        <span>Analyze screen</span>
-                        <span class="usage-count">(${this.getTotalUsed()}/${this.getTotalAvailable()})</span>
-                    </button>
-                </div>                ${this.isLoading ? html`
-                    <div class="loading-overlay">
-                        <div style="display: flex; flex-direction: column; align-items: center;">
-                            <div class="loading-spinner"></div>
-                            <div class="loading-text">Processing...</div>
-                        </div>
-                    </div>
-                ` : ''}            </div>
+                </div>
+            </div>
         `;
     }
 }

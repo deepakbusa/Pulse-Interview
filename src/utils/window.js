@@ -9,7 +9,7 @@ let windowResizing = false;
 let resizeAnimation = null;
 const RESIZE_ANIMATION_DURATION = 500; // milliseconds
 
-function createWindow(sendToRenderer, geminiSessionRef) {
+function createWindow(sendToRenderer) {
     // Get layout preference (default to 'normal')
     let windowWidth = 1100;
     let windowHeight = 800;
@@ -28,6 +28,7 @@ function createWindow(sendToRenderer, geminiSessionRef) {
             enableBlinkFeatures: 'GetDisplayMedia',
             webSecurity: true,
             allowRunningInsecureContent: false,
+            devTools: false, // Disable DevTools in production
         },
         backgroundColor: '#00000000',
     });
@@ -67,8 +68,66 @@ function createWindow(sendToRenderer, geminiSessionRef) {
     );
 
     mainWindow.setResizable(false);
-    mainWindow.setContentProtection(true);
+    
+    // Load undetectability setting from storage and apply it
+    // Default is true (enabled/undetectable)
+    const storage = require('../storage.js');
+    try {
+        const prefs = storage.getPreferences();
+        const undetectabilityEnabled = prefs.undetectabilityEnabled ?? true;
+        mainWindow.setContentProtection(undetectabilityEnabled);
+        console.log(`🔒 Undetectability ${undetectabilityEnabled ? 'enabled' : 'disabled'} on startup`);
+    } catch (err) {
+        // If error loading, default to enabled (true)
+        mainWindow.setContentProtection(true);
+        console.log('🔒 Undetectability enabled (default)');
+    }
+    
     mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+
+    // Handle window reload (Ctrl+R) - logout session before reload
+    // Also block DevTools shortcuts
+    mainWindow.webContents.on('before-input-event', async (event, input) => {
+        if (input.type === 'keyDown' && input.key === 'r' && (input.control || input.meta)) {
+            console.log('Window reload detected, logging out session...');
+            try {
+                await storage.logoutCurrentSession();
+                console.log('✅ Session logged out before reload');
+            } catch (error) {
+                console.error('Error logging out session on reload:', error);
+            }
+        }
+        
+        // Block DevTools shortcuts: F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+Shift+C
+        if (input.type === 'keyDown') {
+            const isDevToolsShortcut = 
+                input.key === 'F12' ||
+                (input.shift && input.control && (input.key === 'I' || input.key === 'i')) ||
+                (input.shift && input.control && (input.key === 'J' || input.key === 'j')) ||
+                (input.shift && input.control && (input.key === 'C' || input.key === 'c'));
+            
+            if (isDevToolsShortcut) {
+                event.preventDefault();
+                console.log('DevTools shortcut blocked');
+            }
+        }
+    });
+
+    // Handle window close - logout session
+    mainWindow.on('close', async (event) => {
+        console.log('Window closing, logging out session...');
+        event.preventDefault(); // Prevent immediate close
+        
+        try {
+            await storage.logoutCurrentSession();
+            console.log('✅ Session logged out on close');
+        } catch (error) {
+            console.error('Error logging out session on close:', error);
+        } finally {
+            // Now actually close
+            mainWindow.destroy();
+        }
+    });
 
     // Hide from Windows taskbar
     if (process.platform === 'win32') {
@@ -89,6 +148,23 @@ function createWindow(sendToRenderer, geminiSessionRef) {
             console.warn('Could not hide from Mission Control:', error.message);
         }
     }
+
+    // Block right-click context menu (prevents "Inspect Element")
+    mainWindow.webContents.on('context-menu', (event, params) => {
+        event.preventDefault();
+        console.log('Context menu blocked');
+    });
+
+    // Handle navigation/reload events
+    mainWindow.webContents.on('did-start-loading', async () => {
+        console.log('Page loading started, logging out previous session...');
+        try {
+            await storage.logoutCurrentSession();
+            console.log('✅ Previous session logged out');
+        } catch (error) {
+            console.error('Error logging out session on navigation:', error);
+        }
+    });
 
     // Center window at the top of the screen
     const primaryDisplay = screen.getPrimaryDisplay();
@@ -115,11 +191,11 @@ function createWindow(sendToRenderer, geminiSessionRef) {
                 keybinds = { ...defaultKeybinds, ...savedKeybinds };
             }
 
-            updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessionRef);
+            updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer);
         }, 150);
     });
 
-    setupWindowIpcHandlers(mainWindow, sendToRenderer, geminiSessionRef);
+    setupWindowIpcHandlers(mainWindow, sendToRenderer);
 
     return mainWindow;
 }
@@ -133,18 +209,19 @@ function getDefaultKeybinds() {
         moveRight: isMac ? 'Alt+Right' : 'Ctrl+Right',
         toggleVisibility: isMac ? 'Cmd+\\' : 'Ctrl+\\',
         toggleClickThrough: isMac ? 'Cmd+M' : 'Ctrl+M',
-        nextStep: isMac ? 'Cmd+Enter' : 'Ctrl+Enter',
+        nextStep: isMac ? 'Cmd+/' : 'Ctrl+/',
         previousResponse: isMac ? 'Cmd+[' : 'Ctrl+[',
         nextResponse: isMac ? 'Cmd+]' : 'Ctrl+]',
         scrollUp: isMac ? 'Cmd+Shift+Up' : 'Ctrl+Shift+Up',
         scrollDown: isMac ? 'Cmd+Shift+Down' : 'Ctrl+Shift+Down',
         sendTranscription: isMac ? 'Cmd+D' : 'Ctrl+D',
-        analyzeScreen: isMac ? 'Cmd+A' : 'Ctrl+A',
+        analyzeScreen: isMac ? 'Cmd+/' : 'Ctrl+/',
+        focusTextInput: isMac ? 'Cmd+Shift+T' : 'Ctrl+Shift+T',
         emergencyErase: isMac ? 'Cmd+Shift+E' : 'Ctrl+Shift+E',
     };
 }
 
-function updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessionRef) {
+function updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer) {
     console.log('Updating global shortcuts with:', keybinds);
 
     // Unregister all existing shortcuts
@@ -232,18 +309,7 @@ function updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessi
         try {
             globalShortcut.register(keybinds.nextStep, async () => {
                 console.log('Next step shortcut triggered');
-                try {
-                    // Determine the shortcut key format
-                    const isMac = process.platform === 'darwin';
-                    const shortcutKey = isMac ? 'cmd+enter' : 'ctrl+enter';
-
-                    // Use the new handleShortcut function
-                    mainWindow.webContents.executeJavaScript(`
-                        pulse.handleShortcut('${shortcutKey}');
-                    `);
-                } catch (error) {
-                    console.error('Error handling next step shortcut:', error);
-                }
+                sendToRenderer('analyze-screen');
             });
             console.log(`Registered nextStep: ${keybinds.nextStep}`);
         } catch (error) {
@@ -316,20 +382,48 @@ function updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessi
         }
     }
 
-    // Register analyze screen shortcut (Ctrl+A)
+    // Register analyze screen shortcut (Ctrl+/)
     if (keybinds.analyzeScreen) {
         try {
             globalShortcut.register(keybinds.analyzeScreen, () => {
-                console.log('Analyze screen shortcut triggered (Ctrl+A)');
-                mainWindow.webContents.executeJavaScript(`
-                    if (window.captureManualScreenshot) {
-                        window.captureManualScreenshot();
-                    }
-                `);
+                console.log('Analyze screen shortcut triggered (Ctrl+/)');
+                sendToRenderer('analyze-screen');
             });
             console.log(`Registered analyzeScreen: ${keybinds.analyzeScreen}`);
         } catch (error) {
             console.error(`Failed to register analyzeScreen (${keybinds.analyzeScreen}):`, error);
+        }
+    }
+
+    // Register focus text input shortcut (Ctrl+Shift+T) - Global shortcut
+    if (keybinds.focusTextInput) {
+        try {
+            // Unregister first to ensure clean registration
+            if (globalShortcut.isRegistered(keybinds.focusTextInput)) {
+                globalShortcut.unregister(keybinds.focusTextInput);
+            }
+            
+            const registered = globalShortcut.register(keybinds.focusTextInput, () => {
+                console.log('Focus text input shortcut triggered (Ctrl+Shift+T)');
+                if (mainWindow) {
+                    // Restore if minimized
+                    if (mainWindow.isMinimized()) {
+                        mainWindow.restore();
+                    }
+                    // Show window without stealing focus - user must click to type
+                    mainWindow.showInactive();
+                    // Send IPC event to highlight input (visual cue only)
+                    sendToRenderer('focus-text-input');
+                }
+            });
+            
+            if (registered) {
+                console.log(`✓ Successfully registered focusTextInput: ${keybinds.focusTextInput}`);
+            } else {
+                console.error(`✗ Failed to register focusTextInput: ${keybinds.focusTextInput} (may be in use by another app)`);
+            }
+        } catch (error) {
+            console.error(`Failed to register focusTextInput (${keybinds.focusTextInput}):`, error);
         }
     }
 
@@ -340,11 +434,6 @@ function updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessi
                 console.log('Emergency Erase triggered!');
                 if (mainWindow && !mainWindow.isDestroyed()) {
                     mainWindow.hide();
-
-                    if (geminiSessionRef.current) {
-                        geminiSessionRef.current.close();
-                        geminiSessionRef.current = null;
-                    }
 
                     sendToRenderer('clear-sensitive-data');
 
@@ -361,7 +450,7 @@ function updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessi
     }
 }
 
-function setupWindowIpcHandlers(mainWindow, sendToRenderer, geminiSessionRef) {
+function setupWindowIpcHandlers(mainWindow, sendToRenderer) {
     ipcMain.on('view-changed', (event, view) => {
         if (view !== 'assistant' && !mainWindow.isDestroyed()) {
             mainWindow.setIgnoreMouseEvents(false);
@@ -376,7 +465,7 @@ function setupWindowIpcHandlers(mainWindow, sendToRenderer, geminiSessionRef) {
 
     ipcMain.on('update-keybinds', (event, newKeybinds) => {
         if (!mainWindow.isDestroyed()) {
-            updateGlobalShortcuts(newKeybinds, mainWindow, sendToRenderer, geminiSessionRef);
+            updateGlobalShortcuts(newKeybinds, mainWindow, sendToRenderer);
         }
     });
 

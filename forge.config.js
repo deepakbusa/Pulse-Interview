@@ -5,8 +5,7 @@ module.exports = {
     packagerConfig: {
         asar: true,
         extraResource: [
-            './src/assets/SystemAudioDump',
-            './.env'  // Include .env file in the build
+            './src/assets/SystemAudioDump'
         ],
         name: 'Pulse',
         icon: 'src/assets/logo',

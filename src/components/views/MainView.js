@@ -167,7 +167,7 @@ export class MainView extends LitElement {
             this.isInitializing = isInitializing;
         });
 
-        // Add keyboard event listener for Ctrl+Enter (or Cmd+Enter on Mac)
+        // Add keyboard event listener for Ctrl+/ (or Cmd+/ on Mac)
         document.addEventListener('keydown', this.boundKeydownHandler);
 
         // Resize window for this view
@@ -222,7 +222,7 @@ export class MainView extends LitElement {
 
     getStartButtonText() {
         const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-        const shortcut = isMac ? 'Cmd+Enter' : 'Ctrl+Enter';
+        const shortcut = isMac ? 'Cmd+/' : 'Ctrl+/';
         return html`Start <span class="shortcut-hint">${shortcut}</span>`;
     }
 
@@ -230,34 +230,12 @@ export class MainView extends LitElement {
         return html`
             <div class="welcome">Welcome</div>
 
-            ${this.isAzureConfigured 
-                ? html`
-                    <div class="description" style="color: var(--success-color); margin-bottom: 16px;">
-                        ✓ Azure OpenAI configured and ready (GPT-4o with Voice Recognition)
-                    </div>
-                    <button @click=${this.handleStartClick} class="start-button ${this.isInitializing ? 'initializing' : ''}" style="width: 100%;">
-                        ${this.getStartButtonText()}
-                    </button>
-                `
-                : html`
-                    <div class="input-group">
-                        <input
-                            type="password"
-                            placeholder="Enter your Gemini API Key"
-                            .value=${this.apiKey}
-                            @input=${this.handleInput}
-                            class="${this.showApiKeyError ? 'api-key-error' : ''}"
-                        />
-                        <button @click=${this.handleStartClick} class="start-button ${this.isInitializing ? 'initializing' : ''}">
-                            ${this.getStartButtonText()}
-                        </button>
-                    </div>
-                    <p class="description">
-                        dont have an api key?
-                        <span @click=${this.handleAPIKeyHelpClick} class="link">get one here</span>
-                    </p>
-                `
-            }
+            <div class="description" style="color: var(--success-color); margin-bottom: 16px;">
+                ✓ AI Assistant ready
+            </div>
+            <button @click=${this.handleStartClick} class="start-button ${this.isInitializing ? 'initializing' : ''}" style="width: 100%;">
+                ${this.getStartButtonText()}
+            </button>
         `;
     }
 }

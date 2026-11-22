@@ -7,6 +7,10 @@ const {
     isAzureConfigured
 } = require('./azure');
 const { getSystemPrompt } = require('./prompts');
+const {
+    logAPIRequestAsync,
+    logScreenshotAnalysisAsync,
+} = require('./backgroundLogger');
 
 let currentConversationHistory = [];
 let currentProfile = 'interview';
@@ -20,7 +24,9 @@ function sendToRenderer(channel, data) {
     }
 }
 
-function setupAzureIpcHandlers(geminiSessionRef) {
+function setupAzureIpcHandlers() {
+    console.log('[INIT] Setting up Azure IPC handlers...');
+    
     // Check if Azure is configured
     ipcMain.handle('azure:is-configured', async () => {
         return { success: true, configured: isAzureConfigured() };
@@ -46,7 +52,7 @@ function setupAzureIpcHandlers(geminiSessionRef) {
             sendToRenderer('session-started', { 
                 success: true, 
                 provider: 'azure',
-                model: process.env.REACT_APP_DEPLOYMENT_ID 
+                model: 'gpt-5-nano'
             });
 
             return { success: true, message: 'Azure session started successfully' };
@@ -84,6 +90,7 @@ function setupAzureIpcHandlers(geminiSessionRef) {
             });
 
             let fullResponse = '';
+            const startTime = Date.now();
 
             await sendMessageToAzure(
                 currentConversationHistory,
@@ -93,6 +100,8 @@ function setupAzureIpcHandlers(geminiSessionRef) {
                 },
                 (response) => {
                     fullResponse = response;
+                    const latencyMs = Date.now() - startTime;
+                    
                     // Add assistant response to history
                     currentConversationHistory.push({
                         role: 'assistant',
@@ -100,6 +109,18 @@ function setupAzureIpcHandlers(geminiSessionRef) {
                     });
 
                     sendToRenderer('azure:message-complete', { response });
+                    
+                    // Log API request (fire-and-forget, never blocks response)
+                    setImmediate(() => {
+                        logAPIRequestAsync({
+                            service: 'azure_openai',
+                            model: 'openai_gpt',
+                            endpoint: '/chat/completions',
+                            latencyMs,
+                            statusCode: 200,
+                            success: true,
+                        });
+                    });
                 },
                 (error) => {
                     console.error('Azure message error:', error);
@@ -118,6 +139,7 @@ function setupAzureIpcHandlers(geminiSessionRef) {
     ipcMain.handle('azure:analyze-screenshot', async (event, { base64Image, prompt }) => {
         try {
             console.log('Analyzing screenshot with Azure Vision');
+            const startTime = Date.now();
 
             const fullPrompt = prompt || `Based on what you see in this screenshot, provide helpful context or suggestions relevant to ${currentProfile} scenario.`;
 
@@ -125,7 +147,28 @@ function setupAzureIpcHandlers(geminiSessionRef) {
                 base64Image,
                 fullPrompt,
                 (result) => {
+                    const latencyMs = Date.now() - startTime;
+                    
                     sendToRenderer('azure:analysis-complete', { result });
+                    
+                    // Log after response is shown (fire-and-forget, never blocks)
+                    setImmediate(() => {
+                        logScreenshotAnalysisAsync({
+                            prompt: fullPrompt,
+                            response: result,
+                            model: 'gpt-5-nano',
+                            latencyMs,
+                        });
+                        
+                        logAPIRequestAsync({
+                            service: 'azure_vision',
+                            model: 'gpt-6-luna',
+                            endpoint: '/vision/analyze',
+                            latencyMs,
+                            statusCode: 200,
+                            success: true,
+                        });
+                    });
                 },
                 (error) => {
                     console.error('Azure vision error:', error);
@@ -145,6 +188,7 @@ function setupAzureIpcHandlers(geminiSessionRef) {
         try {
             if (isSessionActive && text.trim()) {
                 console.log('Processing recognized speech:', text);
+                const startTime = Date.now();
                 
                 // Add to conversation and get response
                 currentConversationHistory.push({
@@ -158,11 +202,25 @@ function setupAzureIpcHandlers(geminiSessionRef) {
                         sendToRenderer('azure:message-chunk', { chunk });
                     },
                     (response) => {
+                        const latencyMs = Date.now() - startTime;
+                        
                         currentConversationHistory.push({
                             role: 'assistant',
                             content: response
                         });
                         sendToRenderer('azure:message-complete', { response });
+                        
+                        // Log API request (fire-and-forget, never blocks response)
+                        setImmediate(() => {
+                            logAPIRequestAsync({
+                                service: 'azure_openai',
+                                model: 'openai_gpt',
+                                endpoint: '/chat/completions',
+                                latencyMs,
+                                statusCode: 200,
+                                success: true,
+                            });
+                        });
                     },
                     (error) => {
                         console.error('Azure message error:', error);
@@ -204,6 +262,40 @@ function setupAzureIpcHandlers(geminiSessionRef) {
 
     ipcMain.on('azure:speech-session-stopped', (event, data) => {
         sendToRenderer('azure:speech-session-stopped', data);
+    });
+
+    // Log speech transcription requests
+    console.log('✅ [MAIN PROCESS] Registering azure:log-speech-request handler');
+    console.error('✅ [MAIN PROCESS - STDERR] Registering azure:log-speech-request handler'); // stderr always shows
+    ipcMain.on('azure:log-speech-request', (event, data) => {
+        console.log('🎤 [Main Process] Received speech log request:', data);
+        console.error('🎤 [Main Process - STDERR] Received speech log request:', data); // stderr always shows
+        
+        // Fire and forget - don't block main process
+        setImmediate(() => {
+            try {
+                const storage = require('../storage'); // Fixed: correct relative path
+                const session = storage.getCurrentSession();
+                console.log('📝 [Main Process] Current session:', session?.userId || 'NO SESSION');
+                
+                if (session && session.userId) {
+                    // logAPIRequestAsync is already non-blocking (uses setImmediate internally)
+                    logAPIRequestAsync({
+                        service: 'azure_speech',
+                        model: 'azure_speech',
+                        endpoint: '/speech/recognize',
+                        latencyMs: 0,
+                        statusCode: 200,
+                        success: true,
+                    });
+                    console.log('✅ [Main Process] Speech request logged (async)');
+                } else {
+                    console.warn('⚠️ [Main Process] No active session, speech request NOT logged');
+                }
+            } catch (error) {
+                console.error('❌ [Main Process] Error logging speech request:', error);
+            }
+        });
     });
 }
 

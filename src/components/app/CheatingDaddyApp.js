@@ -5,7 +5,6 @@ import { CustomizeView } from '../views/CustomizeView.js';
 import { HelpView } from '../views/HelpView.js';
 import { HistoryView } from '../views/HistoryView.js';
 import { AssistantView } from '../views/AssistantView.js';
-import { OnboardingView } from '../views/OnboardingView.js';
 import { LoginView } from '../views/LoginView.js';
 
 export class PulseApp extends LitElement {
@@ -54,11 +53,6 @@ export class PulseApp extends LitElement {
             padding: 12px;
         }
 
-        .main-content.onboarding-view {
-            padding: 0;
-            background: transparent;
-        }
-
         .main-content.settings-view,
         .main-content.help-view,
         .main-content.history-view {
@@ -91,6 +85,200 @@ export class PulseApp extends LitElement {
         ::-webkit-scrollbar-thumb:hover {
             background: var(--scrollbar-thumb-hover);
         }
+
+        /* Interview Setup Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.75);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            animation: fadeIn 0.2s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .interview-setup-modal {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            width: 90%;
+            max-width: 480px;
+            max-height: 90vh;
+            overflow-y: auto;
+            padding: 24px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            animation: slideUp 0.3s ease;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .interview-setup-modal h2 {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-color);
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 18px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-color);
+            margin-bottom: 8px;
+        }
+
+        .form-group .required {
+            color: var(--error-color);
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px 12px;
+            background: var(--input-background);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 13px;
+            color: var(--text-color);
+            transition: border-color 0.2s ease;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: var(--border-default);
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            font-family: inherit;
+        }
+
+        .form-group input.error-shake {
+            animation: shake 0.6s ease;
+            border-color: var(--error-color);
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+            20%, 40%, 60%, 80% { transform: translateX(5px); }
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+            margin-top: 24px;
+        }
+
+        .btn-cancel,
+        .btn-submit {
+            padding: 10px 20px;
+            font-size: 13px;
+            font-weight: 500;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-cancel {
+            background: var(--input-background);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-cancel:hover {
+            background: var(--hover-background);
+        }
+
+        .btn-submit {
+            background: var(--start-button-background);
+            color: var(--start-button-color);
+        }
+
+        .btn-submit:hover {
+            opacity: 0.9;
+        }
+
+        /* Radio and Checkbox Styles */
+        .radio-group,
+        .checkbox-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 8px;
+        }
+
+        .checkbox-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 10px;
+        }
+
+        .radio-label,
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            padding: 8px 12px;
+            background: var(--input-background);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            transition: all 0.2s ease;
+        }
+
+        .radio-label:hover,
+        .checkbox-label:hover {
+            border-color: var(--border-default);
+            background: var(--hover-background);
+        }
+
+        .radio-label input[type="radio"],
+        .checkbox-label input[type="checkbox"] {
+            margin: 0;
+            cursor: pointer;
+            width: 16px;
+            height: 16px;
+        }
+
+        .radio-label span,
+        .checkbox-label span {
+            font-size: 13px;
+            color: var(--text-color);
+            user-select: none;
+        }
+
+        .radio-label input[type="radio"]:checked + span,
+        .checkbox-label input[type="checkbox"]:checked + span {
+            font-weight: 500;
+        }
     `;
 
     static properties = {
@@ -106,12 +294,18 @@ export class PulseApp extends LitElement {
         selectedScreenshotInterval: { type: String },
         selectedImageQuality: { type: String },
         layoutMode: { type: String },
+        showInterviewSetup: { type: Boolean },
+        interviewCompany: { type: String },
+        interviewType: { type: String },
+        interviewLanguages: { type: Array },
+        interviewJobDescription: { type: String },
         _viewInstances: { type: Object, state: true },
         _isClickThrough: { state: true },
         _awaitingNewResponse: { state: true },
         shouldAnimateResponse: { type: Boolean },
         _storageLoaded: { state: true },
         isAuthenticated: { type: Boolean },
+        isLoading: { type: Boolean },
     };
 
     constructor() {
@@ -136,6 +330,12 @@ export class PulseApp extends LitElement {
         this._currentResponseIsComplete = true;
         this.shouldAnimateResponse = false;
         this._storageLoaded = false;
+        this.isLoading = false;
+        this.showInterviewSetup = false;
+        this.interviewCompany = '';
+        this.interviewType = 'technical';
+        this.interviewLanguages = [];
+        this.interviewJobDescription = '';
 
         // Load from storage
         this._loadFromStorage();
@@ -148,20 +348,10 @@ export class PulseApp extends LitElement {
                 cheatingDaddy.storage.getPreferences()
             ]);
 
-            // Check authentication and onboarding status
-            if (!config.onboarded) {
-                this.currentView = 'onboarding';
-            } else {
-                // Onboarding done, check authentication
-                const hasCredentials = await cheatingDaddy.storage.hasPulseCredentials();
-                if (hasCredentials) {
-                    // Has credentials, show login
-                    this.currentView = 'login';
-                } else {
-                    // First time, show login setup
-                    this.currentView = 'login';
-                }
-            }
+            // SECURITY: Always require login on startup - no bypass
+            // Even if credentials exist locally, user must authenticate every time
+            this.currentView = 'login';
+            this.isAuthenticated = false;
 
             // Apply background appearance (color + transparency)
             this.applyBackgroundAppearance(
@@ -238,6 +428,7 @@ export class PulseApp extends LitElement {
         // Set up IPC listeners if needed
         if (window.require) {
             const { ipcRenderer } = window.require('electron');
+            
             ipcRenderer.on('new-response', (_, response) => {
                 this.addNewResponse(response);
             });
@@ -283,6 +474,7 @@ export class PulseApp extends LitElement {
         this.responses = [...this.responses, response];
         this.currentResponseIndex = this.responses.length - 1;
         this._awaitingNewResponse = false;
+        this.isLoading = false; // Hide loading immediately when first chunk arrives
         console.log('[addNewResponse] Added:', response);
         this.requestUpdate();
     }
@@ -301,16 +493,34 @@ export class PulseApp extends LitElement {
 
     // Header event handlers
     handleCustomizeClick() {
+        // SECURITY: Require authentication
+        if (!this.isAuthenticated) {
+            console.warn('Unauthorized access attempt to customize view');
+            this.currentView = 'login';
+            return;
+        }
         this.currentView = 'customize';
         this.requestUpdate();
     }
 
     handleHelpClick() {
+        // SECURITY: Require authentication
+        if (!this.isAuthenticated) {
+            console.warn('Unauthorized access attempt to help view');
+            this.currentView = 'login';
+            return;
+        }
         this.currentView = 'help';
         this.requestUpdate();
     }
 
     handleHistoryClick() {
+        // SECURITY: Require authentication
+        if (!this.isAuthenticated) {
+            console.warn('Unauthorized access attempt to history view');
+            this.currentView = 'login';
+            return;
+        }
         this.currentView = 'history';
         this.requestUpdate();
     }
@@ -326,10 +536,9 @@ export class PulseApp extends LitElement {
                 window.cheatingDaddy.stopWebSpeech();
             }
 
-            // Close the session (both Gemini and Azure)
+            // Close the Azure session
             if (window.require) {
                 const { ipcRenderer } = window.require('electron');
-                await ipcRenderer.invoke('close-session');
                 await ipcRenderer.invoke('azure:stop-session');
             }
             this.sessionActive = false;
@@ -353,6 +562,18 @@ export class PulseApp extends LitElement {
 
     // Main view event handlers
     async handleStart() {
+        // Show interview setup form first
+        this.showInterviewSetup = true;
+        this.requestUpdate();
+    }
+
+    async handleInterviewSetupSubmit(company, interviewType, languages, jobDescription) {
+        this.interviewCompany = company;
+        this.interviewType = interviewType;
+        this.interviewLanguages = languages;
+        this.interviewJobDescription = jobDescription || '';
+        this.showInterviewSetup = false;
+        
         // Check if Azure is configured first
         if (window.require) {
             const { ipcRenderer } = window.require('electron');
@@ -360,25 +581,55 @@ export class PulseApp extends LitElement {
             
             if (azureResult.configured) {
                 console.log('Using Azure OpenAI (auto-configured from .env)');
+                
+                // Build custom prompt with interview details
+                let setupPrompt = `You are helping me answer for a ${interviewType} interview questions at ${this.interviewCompany}.`;
+                
+                if (this.interviewJobDescription) {
+                    setupPrompt += ` Job Description: ${this.interviewJobDescription}.`;
+                }
+                
+                if (interviewType === 'technical' && languages.length > 0) {
+                    setupPrompt += ` Focus on ${languages.join(', ')} programming language${languages.length > 1 ? 's' : ''}.`;
+                }
+                
+                setupPrompt += ' Help me answer interview questions by providing personalized, ready-to-read responses in 5th grade english during live interviews when relevant.';
+                
                 // Start Azure session
                 await ipcRenderer.invoke('azure:start-session', {
                     profile: this.selectedProfile,
-                    customPrompt: '',
-                    language: this.selectedLanguage
+                    customPrompt: setupPrompt,
+                    language: this.interviewLanguage
                 });
                 
-                // Start Web Speech Recognition in renderer
+                // Switch to assistant view first
+                this.startTime = Date.now();
+                this.currentView = 'assistant';
+                this.sessionActive = true;
+                this.requestUpdate();
+                
+                // Start Web Speech Recognition in renderer FIRST
                 if (window.cheatingDaddy?.startWebSpeech) {
                     window.cheatingDaddy.startWebSpeech();
                 }
                 
-                // Pass the screenshot interval as string (including 'manual' option)
+                // Start screen capture
                 cheatingDaddy.startCapture(this.selectedScreenshotInterval, this.selectedImageQuality);
+                
+                // Initialize responses array
                 this.responses = [];
                 this.currentResponseIndex = -1;
-                this.startTime = Date.now();
-                this.currentView = 'assistant';
-                this.sessionActive = true;
+                this.isLoading = true;
+                
+                // Wait a bit for speech recognition to fully initialize
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
+                // Send initial setup message to AI (response will appear in assistant view)
+                await ipcRenderer.invoke('azure:send-message', {
+                    message: setupPrompt,
+                    context: null
+                });
+                
                 return;
             }
         }
@@ -446,14 +697,17 @@ export class PulseApp extends LitElement {
 
     // Assistant view event handlers
     async handleSendText(message) {
+        this.isLoading = true; // Show loading before sending
         const result = await window.cheatingDaddy.sendTextMessage(message);
 
         if (!result.success) {
             console.error('Failed to send message:', result.error);
             this.setStatus('Error sending message: ' + result.error);
+            this.isLoading = false; // Hide loading on error
         } else {
             this.setStatus('Message sent...');
             this._awaitingNewResponse = true;
+            // isLoading will be set to false in addNewResponse when first chunk arrives
         }
     }
 
@@ -474,6 +728,8 @@ export class PulseApp extends LitElement {
         this.isAuthenticated = true;
         this.currentView = 'main';
     }
+
+
 
     updated(changedProperties) {
         super.updated(changedProperties);
@@ -498,16 +754,182 @@ export class PulseApp extends LitElement {
         }
     }
 
+    renderInterviewSetup() {
+        return html`
+            <div class="modal-overlay">
+                <div class="interview-setup-modal">
+                    <h2>Interview Setup</h2>
+                    <form @submit=${(e) => {
+                        e.preventDefault();
+                        const company = e.target.company.value.trim();
+                        if (!company) {
+                            e.target.company.classList.add('error-shake');
+                            setTimeout(() => e.target.company.classList.remove('error-shake'), 600);
+                            return;
+                        }
+                        
+                        const interviewType = e.target.querySelector('input[name="interviewType"]:checked')?.value || 'technical';
+                        const jobDescription = e.target.jobDescription.value.trim();
+                        
+                        // Get selected programming languages (only for technical interviews)
+                        let languages = [];
+                        if (interviewType === 'technical') {
+                            const checkedLangs = e.target.querySelectorAll('input[name="languages"]:checked');
+                            languages = Array.from(checkedLangs).map(cb => cb.value);
+                        }
+                        
+                        this.handleInterviewSetupSubmit(company, interviewType, languages, jobDescription);
+                    }}>
+                        <div class="form-group">
+                            <label for="company">Company <span class="required">*</span></label>
+                            <input 
+                                type="text" 
+                                id="company" 
+                                name="company" 
+                                placeholder="e.g., Google, Microsoft, Amazon..."
+                                required
+                            />
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Interview Type <span class="required">*</span></label>
+                            <div class="radio-group">
+                                <label class="radio-label">
+                                    <input 
+                                        type="radio" 
+                                        name="interviewType" 
+                                        value="technical" 
+                                        checked
+                                        @change=${(e) => {
+                                            this.interviewType = e.target.value;
+                                            this.requestUpdate();
+                                        }}
+                                    />
+                                    <span>Technical</span>
+                                </label>
+                                <label class="radio-label">
+                                    <input 
+                                        type="radio" 
+                                        name="interviewType" 
+                                        value="behavioral"
+                                        @change=${(e) => {
+                                            this.interviewType = e.target.value;
+                                            this.requestUpdate();
+                                        }}
+                                    />
+                                    <span>Behavioral</span>
+                                </label>
+                                <label class="radio-label">
+                                    <input 
+                                        type="radio" 
+                                        name="interviewType" 
+                                        value="hr"
+                                        @change=${(e) => {
+                                            this.interviewType = e.target.value;
+                                            this.requestUpdate();
+                                        }}
+                                    />
+                                    <span>HR</span>
+                                </label>
+                                <label class="radio-label">
+                                    <input 
+                                        type="radio" 
+                                        name="interviewType" 
+                                        value="system-design"
+                                        @change=${(e) => {
+                                            this.interviewType = e.target.value;
+                                            this.requestUpdate();
+                                        }}
+                                    />
+                                    <span>System Design</span>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        ${this.interviewType === 'technical' ? html`
+                            <div class="form-group">
+                                <label>Preferred Programming Languages</label>
+                                <div class="checkbox-grid">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" name="languages" value="JavaScript" />
+                                        <span>JavaScript</span>
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" name="languages" value="Python" />
+                                        <span>Python</span>
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" name="languages" value="Java" />
+                                        <span>Java</span>
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" name="languages" value="C++" />
+                                        <span>C++</span>
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" name="languages" value="C#" />
+                                        <span>C#</span>
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" name="languages" value="TypeScript" />
+                                        <span>TypeScript</span>
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" name="languages" value="Go" />
+                                        <span>Go</span>
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" name="languages" value="Rust" />
+                                        <span>Rust</span>
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" name="languages" value="PHP" />
+                                        <span>PHP</span>
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" name="languages" value="Ruby" />
+                                        <span>Ruby</span>
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" name="languages" value="Swift" />
+                                        <span>Swift</span>
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" name="languages" value="Kotlin" />
+                                        <span>Kotlin</span>
+                                    </label>
+                                </div>
+                            </div>
+                        ` : ''}
+                        
+                        <div class="form-group">
+                            <label for="jobDescription">Job Description (Optional)</label>
+                            <textarea 
+                                id="jobDescription" 
+                                name="jobDescription" 
+                                placeholder="Paste job description or key requirements..."
+                                rows="4"
+                            ></textarea>
+                        </div>
+                        
+                        <div class="form-actions">
+                            <button type="button" class="btn-cancel" @click=${() => {
+                                this.showInterviewSetup = false;
+                                this.requestUpdate();
+                            }}>Cancel</button>
+                            <button type="submit" class="btn-submit">Start Interview</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        `;
+    }
+
     renderCurrentView() {
         // Only re-render the view if it hasn't been cached or if critical properties changed
         const viewKey = `${this.currentView}-${this.selectedProfile}-${this.selectedLanguage}`;
 
         switch (this.currentView) {
-            case 'onboarding':
-                return html`
-                    <onboarding-view .onComplete=${() => this.handleOnboardingComplete()} .onClose=${() => this.handleClose()}></onboarding-view>
-                `;
-
             case 'login':
                 return html`
                     <login-view .onLogin=${() => this.handleLoginSuccess()}></login-view>
@@ -552,7 +974,14 @@ export class PulseApp extends LitElement {
                         .selectedProfile=${this.selectedProfile}
                         .onSendText=${message => this.handleSendText(message)}
                         .shouldAnimateResponse=${this.shouldAnimateResponse}
+                        .isLoading=${this.isLoading}
                         @response-index-changed=${this.handleResponseIndexChanged}
+                        @clear-responses=${() => {
+                            this.responses = [];
+                            this.currentResponseIndex = -1;
+                            console.log('Responses cleared');
+                            this.requestUpdate();
+                        }}
                         @response-animation-complete=${() => {
                             this.shouldAnimateResponse = false;
                             this._currentResponseIsComplete = true;
@@ -570,7 +999,6 @@ export class PulseApp extends LitElement {
     render() {
         const viewClassMap = {
             'assistant': 'assistant-view',
-            'onboarding': 'onboarding-view',
             'customize': 'settings-view',
             'help': 'help-view',
             'history': 'history-view',
@@ -595,6 +1023,7 @@ export class PulseApp extends LitElement {
                     <div class="${mainContentClass}">
                         <div class="view-container">${this.renderCurrentView()}</div>
                     </div>
+                    ${this.showInterviewSetup ? this.renderInterviewSetup() : ''}
                 </div>
             </div>
         `;
